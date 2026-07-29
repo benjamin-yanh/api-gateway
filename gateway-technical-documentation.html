@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=docs/gateway/index.html">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>new-api 网关请求链路与架构技术文档</title>
+  <style>
+    :root {
+      --ink: #182230;
+      --muted: #58687b;
+      --line: #d9e2ec;
+      --paper: #ffffff;
+      --canvas: #f4f7fb;
+      --blue: #2563eb;
+      --blue-soft: #e9f0ff;
+      --violet: #6d28d9;
+      --green: #087f5b;
+      --green-soft: #e6f7f0;
+      --orange: #b45309;
+      --orange-soft: #fff5e7;
+      --red: #be123c;
+      --red-soft: #fff0f3;
+      --shadow: 0 14px 34px rgba(32, 52, 79, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--canvas); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; line-height: 1.68; }
+    .shell { max-width: 1420px; margin: 0 auto; padding: 36px 28px 72px; }
+    .hero { background: linear-gradient(135deg, #102a56 0%, #1e3a8a 48%, #4c1d95 100%); color: white; border-radius: 24px; padding: 42px 46px; box-shadow: var(--shadow); }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 12px; opacity: .78; }
+    h1 { font-size: clamp(30px, 4vw, 54px); line-height: 1.14; margin: 14px 0 12px; letter-spacing: -.02em; }
+    .hero p { max-width: 920px; margin: 0; font-size: 17px; color: #e5edff; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .chip { border: 1px solid rgba(255,255,255,.28); background: rgba(255,255,255,.12); padding: 5px 11px; border-radius: 999px; font-size: 13px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 22px 0; padding: 12px 4px; }
+    nav a { color: #24446e; text-decoration: none; font-size: 14px; font-weight: 650; }
+    nav a:hover { color: var(--blue); text-decoration: underline; }
+    section { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; margin: 22px 0; padding: 28px 30px; box-shadow: 0 5px 15px rgba(32,52,79,.035); }
+    h2 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.015em; }
+    h3 { margin: 26px 0 8px; font-size: 20px; }
+    h4 { margin: 18px 0 6px; font-size: 16px; }
+    .lead { color: var(--muted); margin-top: 0; }
+    .note { border-left: 4px solid var(--blue); background: var(--blue-soft); padding: 13px 16px; border-radius: 0 10px 10px 0; color: #25416c; }
+    .note.green { border-left-color: var(--green); background: var(--green-soft); color: #155943; }
+    .note.orange { border-left-color: var(--orange); background: var(--orange-soft); color: #74420b; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; background: linear-gradient(180deg, #fff, #fbfdff); }
+    .card h3 { margin-top: 0; font-size: 18px; }
+    .tag { display: inline-block; font-size: 12px; font-weight: 700; color: #264a80; background: var(--blue-soft); padding: 2px 8px; border-radius: 5px; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    code { color: #55309e; background: #f2effa; border-radius: 4px; padding: 1px 4px; font-size: .92em; }
+    pre { overflow: auto; background: #111827; color: #e5eefc; border-radius: 12px; padding: 16px 18px; line-height: 1.55; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 4px; font-size: 14px; }
+    th, td { border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; padding: 11px 10px; }
+    th { color: #28466d; background: #f7faff; font-weight: 700; }
+    tr:last-child td { border-bottom: 0; }
+    .diagram { overflow-x: auto; margin: 16px 0 8px; border: 1px solid var(--line); border-radius: 14px; background: #fbfdff; padding: 12px; }
+    .diagram svg { display: block; min-width: 960px; width: 100%; height: auto; }
+    .caption { color: var(--muted); font-size: 13px; margin: 6px 2px 0; }
+    .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 22px; }
+    ul { padding-left: 21px; }
+    li + li { margin-top: 5px; }
+    .small { font-size: 13px; color: var(--muted); }
+    .path { color: #315d9b; word-break: break-all; }
+    .check { list-style: none; padding-left: 0; }
+    .check li { padding-left: 27px; position: relative; }
+    .check li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 800; }
+    footer { text-align: center; color: var(--muted); padding: 26px 0 0; font-size: 13px; }
+    @media (max-width: 700px) { .shell { padding: 16px 12px 42px; } .hero, section { padding: 22px 18px; border-radius: 14px; } h2 { font-size: 24px; } }
+  </style>
+</head>
+<body>
+<p style="font-family:sans-serif;padding:2rem">文档已拆分为多页阅读站点，正在跳转到 <a href="docs/gateway/index.html">网关架构阅读地图</a>。</p>
+<main class="shell">
+  <header class="hero">
+    <div class="eyebrow">Code-derived technical documentation · 2026-07-15</div>
+    <h1>new-api 网关请求链路与架构</h1>
+    <p>本文只从当前代码推导网关行为，说明用户请求如何进入网关、经过哪些处理、如何选择和调用下游，以及响应如何返回和结算。图中的“渠道”指一个可用的上游服务配置，不等同于对外协议。</p>
+    <div class="chips"><span class="chip">Go + Gin</span><span class="chip">GORM + SQLite/MySQL/PostgreSQL</span><span class="chip">Redis / 内存缓存</span><span class="chip">OpenAI / Claude / Gemini 兼容入口</span><span class="chip">流式 + WebSocket + 异步任务</span></div>
+  </header>
+
+  <nav aria-label="文档导航">
+    <a href="#summary">结论</a><a href="#flow">标准流程图</a><a href="#architecture">架构图</a><a href="#steps">分步说明</a><a href="#routing">路由与切换</a><a href="#downstream">下游执行</a><a href="#glossary">名词解释</a><a href="#self-check">自检记录</a>
+  </nav>
+
+  <section id="summary">
+    <h2>一、先看结论</h2>
+    <p class="lead">从代码视角，网关可以压缩成一条“入口—策略—转发—结算”主链。</p>
+    <div class="note">用户请求不是直接进入某个供应商 SDK，而是先进入统一协议入口；网关在真正发起上游 HTTP 请求前完成身份、模型、分组、渠道、限流、请求校验、Token 估算和预扣费。进程级中间件还会在路由前提供 Recovery、Request ID、版本、I18n、日志和 Session 上下文。</div>
+    <pre>Client
+  → 进程级中间件（Recovery / RequestID / Version / I18n / Logger / Session）
+  → Gin 路由与通用中间件
+  → TokenAuth / ModelRequestRateLimit / Distribute
+  → GetAndValidateRequest + GenRelayInfo
+  → Token 估算 + ModelPriceHelper + PreConsumeBilling
+  → 渠道适配器 Convert + DoRequest
+  → 上游 Provider
+  → DoResponse / StreamScanner / Usage
+  → SettleBilling + Log + (必要时) Retry / Refund
+  → Client</pre>
+    <div class="grid">
+      <div class="card"><span class="tag">入口</span><h3>统一协议接入</h3><p><code>/v1</code>、<code>/v1beta</code>、<code>/mj</code>、<code>/suno</code> 等路由把 OpenAI、Claude、Gemini、Rerank、图片、音频、Realtime 和任务接口归一到 Relay。</p></div>
+      <div class="card"><span class="tag">策略</span><h3>鉴权与渠道调度</h3><p>Token 决定用户、分组、模型限制和可选的指定渠道；Distribute 决定是否命中渠道亲和缓存或执行优先级/权重选择。</p></div>
+      <div class="card"><span class="tag">执行</span><h3>适配器转发</h3><p>Adaptor 负责 URL、Header、请求体转换、上游调用和响应解析；同一个入口可映射到多个供应商协议。</p></div>
+      <div class="card"><span class="tag">账务</span><h3>预扣—结算闭环</h3><p>请求前按估算 Token/价格预扣，响应后按真实 Usage 补扣或退款，失败时回滚并记录渠道错误。</p></div>
+    </div>
+  </section>
+
+  <section id="flow">
+    <h2>二、标准请求流程图</h2>
+    <p class="lead">实线是主路径，虚线是错误、重试、异步和旁路处理。此图覆盖普通 HTTP、流式请求和大多数协议格式。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1260 1440" role="img" aria-label="用户请求到下游并返回的标准流程图">
+        <defs>
+          <marker id="arrow-flow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#406a9e"/></marker>
+          <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#be123c"/></marker>
+          <style>
+            .fbox{stroke-width:2;rx:14;ry:14}.ftext{font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#182230}.fsub{font:13px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#58687b}.fline{stroke:#406a9e;stroke-width:2.4;fill:none;marker-end:url(#arrow-flow)}.ferror{stroke:#be123c;stroke-width:2.2;fill:none;stroke-dasharray:8 6;marker-end:url(#arrow-red)}.flabel{font:13px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#406a9e}.erlabel{font:13px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#be123c}.lane{fill:#f7faff;stroke:#d9e2ec;stroke-width:1.5;rx:18;ry:18}.lanetitle{font:700 14px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#315d9b}
+          </style>
+        </defs>
+        <rect class="lane" x="30" y="20" width="1200" height="160"/><text class="lanetitle" x="55" y="50">A. 客户端与入口层</text>
+        <rect class="fbox" x="90" y="82" width="210" height="62" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="195" y="109" text-anchor="middle">客户端请求</text><text class="fsub" x="195" y="130" text-anchor="middle">HTTP / SSE / WebSocket</text>
+        <rect class="fbox" x="400" y="82" width="240" height="62" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="520" y="109" text-anchor="middle">Gin 路由</text><text class="fsub" x="520" y="130" text-anchor="middle">/v1 · /v1beta · /mj · /suno</text>
+        <rect class="fbox" x="740" y="82" width="360" height="62" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="920" y="109" text-anchor="middle">CORS / 解压 / BodyStorage / Stats</text><text class="fsub" x="920" y="130" text-anchor="middle">请求体可复用，支持重试时重新读取</text>
+        <path class="fline" d="M300 113 H400"/><path class="fline" d="M640 113 H740"/>
+
+        <rect class="lane" x="30" y="205" width="1200" height="255"/><text class="lanetitle" x="55" y="235">B. 安全、限流与渠道分发</text>
+        <rect class="fbox" x="90" y="270" width="250" height="70" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="215" y="299" text-anchor="middle">TokenAuth</text><text class="fsub" x="215" y="321" text-anchor="middle">Token / IP / 用户状态 / 模型限制</text>
+        <rect class="fbox" x="405" y="270" width="260" height="70" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="535" y="299" text-anchor="middle">ModelRequestRateLimit</text><text class="fsub" x="535" y="321" text-anchor="middle">Redis 或内存，按分组/模型</text>
+        <rect class="fbox" x="730" y="270" width="380" height="70" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="920" y="299" text-anchor="middle">Distribute</text><text class="fsub" x="920" y="321" text-anchor="middle">指定渠道 → 亲和缓存 → 优先级/权重选择</text>
+        <path class="fline" d="M520 144 V270"/><path class="fline" d="M340 305 H405"/><path class="fline" d="M665 305 H730"/>
+        <rect class="fbox" x="220" y="380" width="280" height="54" fill="#fff5e7" stroke="#e09a3e"/><text class="ftext" x="360" y="413" text-anchor="middle">SetupContextForSelectedChannel</text>
+        <rect class="fbox" x="650" y="380" width="300" height="54" fill="#fff5e7" stroke="#e09a3e"/><text class="ftext" x="800" y="413" text-anchor="middle">模型、分组、渠道元数据进入 Context</text>
+        <path class="fline" d="M920 340 V380 H500"/><path class="fline" d="M500 407 H650"/>
+
+        <rect class="lane" x="30" y="485" width="1200" height="390"/><text class="lanetitle" x="55" y="515">C. Relay 核心：校验、计费与重试</text>
+        <rect class="fbox" x="80" y="550" width="250" height="66" fill="#f0eaff" stroke="#9b72df"/><text class="ftext" x="205" y="577" text-anchor="middle">GetAndValidateRequest</text><text class="fsub" x="205" y="598" text-anchor="middle">按 RelayFormat 解析 DTO</text>
+        <rect class="fbox" x="390" y="550" width="230" height="66" fill="#f0eaff" stroke="#9b72df"/><text class="ftext" x="505" y="577" text-anchor="middle">GenRelayInfo</text><text class="fsub" x="505" y="598" text-anchor="middle">请求、模式、模型、流式状态</text>
+        <rect class="fbox" x="680" y="550" width="210" height="66" fill="#f0eaff" stroke="#9b72df"/><text class="ftext" x="785" y="577" text-anchor="middle">Token 估算</text><text class="fsub" x="785" y="598" text-anchor="middle">文本 / 图片 / 音频 / 文件</text>
+        <rect class="fbox" x="950" y="550" width="220" height="66" fill="#f0eaff" stroke="#9b72df"/><text class="ftext" x="1060" y="577" text-anchor="middle">ModelPriceHelper</text><text class="fsub" x="1060" y="598" text-anchor="middle">倍率 / 固定价 / 表达式</text>
+        <path class="fline" d="M360 407 V583 H80"/><path class="fline" d="M330 583 H390"/><path class="fline" d="M620 583 H680"/><path class="fline" d="M890 583 H950"/>
+        <rect class="fbox" x="220" y="685" width="280" height="62" fill="#fff5e7" stroke="#e09a3e"/><text class="ftext" x="360" y="712" text-anchor="middle">PreConsumeBilling</text><text class="fsub" x="360" y="733" text-anchor="middle">钱包 / 订阅额度预扣</text>
+        <rect class="fbox" x="650" y="685" width="300" height="62" fill="#fff5e7" stroke="#e09a3e"/><text class="ftext" x="800" y="712" text-anchor="middle">RetryParam + getChannel</text><text class="fsub" x="800" y="733" text-anchor="middle">每次重试重新装载渠道上下文</text>
+        <path class="fline" d="M1060 616 V685 H500"/><path class="fline" d="M500 716 H650"/>
+        <rect class="fbox" x="410" y="800" width="380" height="56" fill="#fff0f3" stroke="#df5172"/><text class="ftext" x="600" y="834" text-anchor="middle">错误分类：可重试？跳过？渠道错误？</text>
+        <path class="fline" d="M800 747 V800 H790"/>
+
+        <rect class="lane" x="30" y="900" width="1200" height="300"/><text class="lanetitle" x="55" y="930">D. 适配器与下游</text>
+        <rect class="fbox" x="100" y="965" width="250" height="70" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="225" y="994" text-anchor="middle">Adaptor Init</text><text class="fsub" x="225" y="1016" text-anchor="middle">根据 ChannelType → APIType</text>
+        <rect class="fbox" x="430" y="965" width="260" height="70" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="560" y="994" text-anchor="middle">Convert + Override</text><text class="fsub" x="560" y="1016" text-anchor="middle">请求体、Header、模型映射</text>
+        <rect class="fbox" x="770" y="965" width="250" height="70" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="895" y="994" text-anchor="middle">DoRequest</text><text class="fsub" x="895" y="1016" text-anchor="middle">HTTP / WebSocket 到 Provider</text>
+        <rect class="fbox" x="1090" y="965" width="100" height="70" fill="#e9f0ff" stroke="#6a8fd2"/><text class="ftext" x="1140" y="994" text-anchor="middle">上游</text><text class="fsub" x="1140" y="1016" text-anchor="middle">AI</text>
+        <path class="fline" d="M790 856 V1000 H100"/><path class="fline" d="M350 1000 H430"/><path class="fline" d="M690 1000 H770"/><path class="fline" d="M1020 1000 H1090"/>
+        <rect class="fbox" x="280" y="1100" width="280" height="60" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="420" y="1136" text-anchor="middle">DoResponse / StreamScanner</text>
+        <rect class="fbox" x="700" y="1100" width="280" height="60" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="840" y="1136" text-anchor="middle">PostConsume / SettleBilling</text>
+        <path class="fline" d="M1140 1035 V1130 H980"/><path class="fline" d="M700 1130 H560"/>
+
+        <rect class="lane" x="30" y="1230" width="1200" height="180"/><text class="lanetitle" x="55" y="1260">E. 返回、日志与错误分支</text>
+        <rect class="fbox" x="90" y="1290" width="230" height="58" fill="#e6f7f0" stroke="#2c9b78"/><text class="ftext" x="205" y="1325" text-anchor="middle">返回客户端</text>
+        <rect class="fbox" x="430" y="1290" width="230" height="58" fill="#f7faff" stroke="#8aa2bd"/><text class="ftext" x="545" y="1325" text-anchor="middle">消费日志 / 性能指标</text>
+        <rect class="fbox" x="770" y="1290" width="300" height="58" fill="#fff0f3" stroke="#df5172"/><text class="ftext" x="920" y="1325" text-anchor="middle">失败：Refund + 渠道错误处理 + Retry</text>
+        <path class="fline" d="M420 1130 V1320 H320"/><path class="fline" d="M840 1160 V1320 H660"/>
+        <path class="ferror" d="M790 856 C1090 856,1160 760,1160 660"/><text class="erlabel" x="1010" y="796">可重试错误</text>
+        <path class="ferror" d="M950 616 C1170 620,1170 1220,1070 1320"/><text class="erlabel" x="1110" y="895" transform="rotate(90 1110 895)">失败/退款</text>
+        <path class="ferror" d="M600 800 C150 800,50 700,50 583"/><text class="erlabel" x="76" y="720">校验或预扣失败：直接返回</text>
+      </svg>
+    </div>
+    <p class="caption">流程依据：<code>router/relay-router.go</code>、<code>middleware/auth.go</code>、<code>middleware/distributor.go</code>、<code>controller/relay.go</code>、<code>relay/compatible_handler.go</code>。</p>
+  </section>
+
+  <section id="architecture">
+    <h2>三、分层架构图</h2>
+    <p class="lead">架构图按“请求平面”和“支撑平面”拆开，强调 Router → Middleware → Controller → Service/Relay → Channel Adapter → Provider 的主依赖方向。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1260 820" role="img" aria-label="new-api 网关分层架构图">
+        <defs><marker id="arrow-arch" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#496d99"/></marker><style>
+          .abox{stroke:#cdd9e6;stroke-width:1.7;rx:13;ry:13}.at{font:700 17px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#182230}.as{font:13px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#53677e}.aline{stroke:#496d99;stroke-width:2.4;fill:none;marker-end:url(#arrow-arch)}.sup{stroke:#7b61a8;stroke-width:2;fill:none;stroke-dasharray:7 6}.lane2{fill:#f8fbff;stroke:#d9e2ec;stroke-width:1.4;rx:18;ry:18}.lt{font:700 14px -apple-system,BlinkMacSystemFont,'Segoe UI','Microsoft YaHei',sans-serif;fill:#315d9b}
+        </style></defs>
+        <rect class="lane2" x="25" y="20" width="1210" height="160"/><text class="lt" x="50" y="50">请求平面 · 多协议入口</text>
+        <rect class="abox" x="65" y="80" width="220" height="66" fill="#e9f0ff"/><text class="at" x="175" y="108" text-anchor="middle">Client / SDK</text><text class="as" x="175" y="130" text-anchor="middle">OpenAI · Claude · Gemini</text>
+        <rect class="abox" x="345" y="80" width="250" height="66" fill="#e9f0ff"/><text class="at" x="470" y="108" text-anchor="middle">Router</text><text class="as" x="470" y="130" text-anchor="middle">Gin 路由与通用中间件</text>
+        <rect class="abox" x="655" y="80" width="250" height="66" fill="#e6f7f0"/><text class="at" x="780" y="108" text-anchor="middle">Middleware</text><text class="as" x="780" y="130" text-anchor="middle">鉴权 · 限流 · 分发</text>
+        <rect class="abox" x="965" y="80" width="220" height="66" fill="#f0eaff"/><text class="at" x="1075" y="108" text-anchor="middle">Controller</text><text class="as" x="1075" y="130" text-anchor="middle">Relay / Task / Model</text>
+        <path class="aline" d="M285 113 H345"/><path class="aline" d="M595 113 H655"/><path class="aline" d="M905 113 H965"/>
+
+        <rect class="lane2" x="25" y="205" width="1210" height="270"/><text class="lt" x="50" y="235">请求处理平面 · 统一内部模型与策略</text>
+        <rect class="abox" x="75" y="275" width="260" height="74" fill="#f0eaff"/><text class="at" x="205" y="304" text-anchor="middle">Relay Core</text><text class="as" x="205" y="328" text-anchor="middle">校验 · RelayInfo · RetryParam</text>
+        <rect class="abox" x="385" y="275" width="260" height="74" fill="#fff5e7"/><text class="at" x="515" y="304" text-anchor="middle">Service</text><text class="as" x="515" y="328" text-anchor="middle">选渠道 · Token · 计费 · 日志</text>
+        <rect class="abox" x="695" y="275" width="240" height="74" fill="#fff5e7"/><text class="at" x="815" y="304" text-anchor="middle">Model / DTO</text><text class="as" x="815" y="328" text-anchor="middle">Channel · Ability · Token</text>
+        <rect class="abox" x="985" y="275" width="195" height="74" fill="#fff5e7"/><text class="at" x="1082" y="304" text-anchor="middle">Settings</text><text class="as" x="1082" y="328" text-anchor="middle">Ratio · Operation</text>
+        <path class="aline" d="M1075 146 V275 H335"/><path class="aline" d="M335 312 H385"/><path class="aline" d="M645 312 H695"/><path class="aline" d="M935 312 H985"/>
+        <rect class="abox" x="205" y="395" width="260" height="52" fill="#e9f0ff"/><text class="at" x="335" y="428" text-anchor="middle">Stream / Response Convert</text>
+        <rect class="abox" x="620" y="395" width="260" height="52" fill="#e9f0ff"/><text class="at" x="750" y="428" text-anchor="middle">BillingSession</text>
+        <path class="aline" d="M205 349 V395"/><path class="aline" d="M515 349 V395 H620"/>
+
+        <rect class="lane2" x="25" y="500" width="1210" height="150"/><text class="lt" x="50" y="530">协议适配平面 · 统一 Adaptor 接口</text>
+        <rect class="abox" x="80" y="565" width="220" height="55" fill="#e9f0ff"/><text class="at" x="190" y="600" text-anchor="middle">channel.Adaptor</text>
+        <rect class="abox" x="350" y="565" width="180" height="55" fill="#e9f0ff"/><text class="at" x="440" y="600" text-anchor="middle">OpenAI</text>
+        <rect class="abox" x="575" y="565" width="180" height="55" fill="#e9f0ff"/><text class="at" x="665" y="600" text-anchor="middle">Claude</text>
+        <rect class="abox" x="800" y="565" width="180" height="55" fill="#e9f0ff"/><text class="at" x="890" y="600" text-anchor="middle">Gemini</text>
+        <rect class="abox" x="1025" y="565" width="155" height="55" fill="#e9f0ff"/><text class="at" x="1102" y="600" text-anchor="middle">40+ Provider</text>
+        <path class="aline" d="M335 447 V530 H190 V565"/><path class="aline" d="M190 620 H350"/><path class="aline" d="M190 620 H575"/><path class="aline" d="M190 620 H800"/><path class="aline" d="M190 620 H1025"/>
+
+        <rect class="lane2" x="25" y="680" width="1210" height="115"/><text class="lt" x="50" y="710">支撑平面 · 状态、数据、观测</text>
+        <rect class="abox" x="80" y="735" width="210" height="42" fill="#f7faff"/><text class="at" x="185" y="762" text-anchor="middle">DB：用户/渠道/日志</text>
+        <rect class="abox" x="335" y="735" width="210" height="42" fill="#f7faff"/><text class="at" x="440" y="762" text-anchor="middle">Redis / Memory Cache</text>
+        <rect class="abox" x="590" y="735" width="210" height="42" fill="#f7faff"/><text class="at" x="695" y="762" text-anchor="middle">Quota / Billing</text>
+        <rect class="abox" x="845" y="735" width="210" height="42" fill="#f7faff"/><text class="at" x="950" y="762" text-anchor="middle">Logs / Metrics</text>
+        <path class="sup" d="M515 349 V735 H290"/><path class="sup" d="M815 349 V735 H545"/><path class="sup" d="M750 447 V735 H800"/><path class="sup" d="M1075 146 V735 H845"/>
+      </svg>
+    </div>
+    <p class="caption">接口契约依据 <code>relay/channel/adapter.go</code>；适配器注册依据 <code>relay/relay_adaptor.go</code>；请求/支撑层依赖依据对应包的调用关系。</p>
+  </section>
+
+  <section id="steps">
+    <h2>四、逐步说明：请求如何进入网关</h2>
+    <table>
+      <thead><tr><th style="width:7%">阶段</th><th style="width:22%">代码位置</th><th>网关处理</th><th style="width:25%">输出/状态</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td><code>main.go:176-201</code></td><td>路由前执行 Recovery、Request ID、版本、I18n、Logger、Session 等进程级中间件。</td><td>建立全局请求上下文，保证错误、日志和响应可关联。</td></tr>
+        <tr><td>1</td><td><code>router/relay-router.go:13</code></td><td>按路径和协议注册路由，例如 <code>/v1/chat/completions</code>、<code>/v1/messages</code>、<code>/v1/responses</code>、<code>/v1/rerank</code>、<code>/v1beta/models/*path</code>。</td><td>把请求绑定到对应 <code>RelayFormat</code> 或任务 Controller。</td></tr>
+        <tr><td>2</td><td><code>middleware/auth.go:314</code><br><code>model/token.go:195</code></td><td>兼容 Bearer、Claude <code>x-api-key</code>、Gemini query/header、Realtime WebSocket Token；验证 Token 有效期、状态、剩余额度/无限额度、用户状态和 IP 限制。Token 模型限制先写入 Context，真正的模型白名单拒绝在 Distribute 阶段执行。</td><td>在 Gin Context 写入 user/token/group 等上下文；失败返回 401/403。</td></tr>
+        <tr><td>3</td><td><code>middleware/model-rate-limit.go:166</code></td><td>按 Token 分组或用户分组取限流配置；Redis 可用时使用 Redis，否则使用内存限流器。</td><td>超过窗口限制返回 429；成功请求另记成功计数。</td></tr>
+        <tr><td>4</td><td><code>middleware/distributor.go:32</code></td><td>读取请求中的模型和 group；优先处理 Token 指定渠道，其次查渠道亲和性缓存，最后走满足模型/路径/分组的渠道选择。</td><td>选出 Channel，并将 URL、Key、Header/Param override、模型映射等写回 Context。</td></tr>
+        <tr><td>5</td><td><code>relay/helper/valid_request.go:21</code><br><code>relay/common/relay_info.go:543</code></td><td>按 RelayFormat 解析请求 DTO，建立 <code>RelayInfo</code>，保存原始模型、请求模式、流式状态、用户和渠道元数据。</td><td>后续 Service、Adaptor、Billing 共用一个请求上下文。</td></tr>
+        <tr><td>6</td><td><code>service/token_counter.go:179</code></td><td>估算文本 Token；按条件处理图片、音频、视频、文件；媒体计数受配置开关和流式状态影响。</td><td>得到 <code>EstimatedPromptTokens</code>，用于预扣和无 Usage 时的回退。</td></tr>
+        <tr><td>7</td><td><code>relay/helper/price.go:72</code></td><td>读取模型价格/倍率、分组倍率、缓存/媒体倍率或阶梯表达式，计算预扣额度。</td><td>生成 <code>PriceData.QuotaToPreConsume</code>。</td></tr>
+        <tr><td>8</td><td><code>service/billing.go:20</code></td><td>创建 BillingSession，按钱包或订阅额度预扣；对负数、溢出和 quota clamp 做防护。</td><td>额度不足或价格异常时请求不下游，直接返回。</td></tr>
+        <tr><td>9</td><td><code>controller/relay.go:191</code><br><code>common/gin.go:29-109</code></td><td>进入重试循环；每轮先把 BodyStorage Seek(0) 后重新挂载到 Request.Body，再调用 <code>getChannel</code>，必要时重新加载渠道上下文和多 Key。</td><td>请求体可安全重放；可从当前优先级切换到下一优先级，<code>auto</code> Token 还可跨分组。</td></tr>
+        <tr><td>10</td><td><code>relay/compatible_handler.go:25</code></td><td>执行模型映射、pass-through 或 Adaptor 转换；应用参数覆盖和 Header 覆盖，生成上游请求体。</td><td>得到供应商能理解的 URL、Header、Body。</td></tr>
+        <tr><td>11</td><td><code>relay/channel/adapter.go:15</code></td><td>Adaptor 的 <code>DoRequest</code> 调上游；<code>DoResponse</code> 解析普通响应、流式事件或任务响应。</td><td>将供应商差异收敛成内部 Usage、错误和 RelayInfo 状态。</td></tr>
+        <tr><td>12</td><td><code>service/billing.go:51</code><br><code>service/log_info_generate.go:71</code></td><td>根据真实 Usage 结算、补扣或退款；记录请求路径、渠道链路、流状态、耗时、倍率和异常审计。</td><td>最终响应返回客户端；失败则按规则重试、自动禁用异常渠道或退费。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="routing">
+    <h2>五、渠道亲和性、Token 指定渠道与自动切换</h2>
+    <div class="two-col">
+      <div class="card"><h3>普通 Token：动态调度</h3><p>普通 Token 不绑定单个渠道。网关按 <code>TokenGroup + Model + RequestPath</code> 取满足条件的 Ability，先按优先级，再在同优先级内按权重随机。</p><p class="small">实现：<code>service/channel_select.go:84</code>、<code>model/channel_cache.go:114</code>。</p></div>
+      <div class="card"><h3>管理员指定渠道</h3><p>管理员可以使用 <code>sk-&lt;token-key&gt;-&lt;channel-id&gt;</code> 形式。Distribute 直接加载该 ID 并检查启用状态；普通用户指定渠道会被拒绝。</p><p class="small">实现：<code>middleware/auth.go:448</code>、<code>middleware/distributor.go:35</code>。</p></div>
+      <div class="card"><h3>渠道亲和性</h3><p>规则先按模型、路径、User-Agent 过滤，再从 context/header/JSON 路径提取 Key；缓存映射为“规则 + 模型/分组 + Key → channel_id”。成功后写回 TTL 缓存，后续请求优先复用。</p><p class="small">实现：<code>service/channel_affinity.go:550</code>、<code>service/channel_affinity.go:713</code>。</p></div>
+      <div class="card"><h3>故障切换</h3><p>错误进入 <code>shouldRetry</code>。HTTP 状态码、错误标记、剩余次数、指定渠道和亲和性规则共同决定是否切换；<code>auto + cross_group_retry</code> 只有在当前组优先级耗尽后才按用户自动组顺序继续尝试。</p><p class="small">实现：<code>controller/relay.go:325</code>、<code>service/channel_select.go:84</code>。</p></div>
+    </div>
+    <h3>同一个请求的渠道切换时序</h3>
+    <pre>retry = 0：选择最高优先级满足渠道 A
+  → A 请求失败
+  → shouldRetry(error) == true
+retry = 1：选择下一优先级渠道 B；只有 auto 且 cross_group_retry 开启、当前组优先级耗尽时才换到下一个分组
+  → B 成功
+  → 以 B 的响应 Usage 结算
+  → 若亲和性 switch_on_success，则把 Key → B 写回缓存
+  → 日志记录 use_channel = [A, B]</pre>
+    <div class="note orange">注意：预扣通常发生在重试循环前；重试只改变下游渠道，不会重复向用户预扣整笔额度。普通状态码重试会被“指定渠道”和亲和规则的 skip_retry 阻断；渠道级错误有单独的错误分支。最终由真实 Usage 的结算路径补扣或退款。</div>
+  </section>
+
+  <section id="downstream">
+    <h2>六、网关如何到达下游并把响应带回来</h2>
+    <div class="grid">
+      <div class="card"><h3>1. 选择适配器</h3><p><code>relay.GetAdaptor(apiType)</code> 把渠道类型映射到 OpenAI、Claude、Gemini、Jina、Cohere、AWS、Vertex 等实现；同一 APIType 也可能复用 OpenAI 兼容适配器。</p><p class="small">代码：<code>relay/relay_adaptor.go:54</code>。</p></div>
+      <div class="card"><h3>2. 构建上游请求</h3><p>Adaptor 初始化后实现 URL、Header 和请求体转换。Relay 会先做模型映射、系统提示处理、pass-through 判断，再执行参数/头覆盖。</p><p class="small">代码：<code>relay/compatible_handler.go:42</code>、<code>relay/channel/adapter.go:18</code>。</p></div>
+      <div class="card"><h3>3. 发送与解析</h3><p><code>DoRequest</code> 发 HTTP/WebSocket；非 2xx 响应进入统一错误处理；成功响应由 <code>DoResponse</code> 解析为 Usage 或流式/任务结果。</p><p class="small">代码：<code>relay/compatible_handler.go:188</code>、<code>relay/helper/stream_scanner.go:77</code>。</p></div>
+      <div class="card"><h3>4. 返回客户端</h3><p>普通请求返回统一 JSON；Claude 返回 Claude 错误结构；Realtime 使用 WebSocket；SSE 由 StreamScanner 逐事件透传并维护结束原因。</p><p class="small">代码：<code>controller/relay.go:89</code>、<code>relay/helper/stream_scanner.go:77</code>。</p></div>
+    </div>
+    <h3>协议适配器的最小契约</h3>
+    <pre>type Adaptor interface {
+  Init(info *relaycommon.RelayInfo)
+  GetRequestURL(info *relaycommon.RelayInfo) (string, error)
+  SetupRequestHeader(...)
+  ConvertOpenAIRequest(...)
+  ConvertClaudeRequest(...)
+  ConvertGeminiRequest(...)
+  DoRequest(...)
+  DoResponse(...)
+  GetModelList() []string
+}</pre>
+    <h3>异步任务路径</h3>
+    <p>图片、视频、音乐等任务使用 TaskAdaptor：先校验和估算账单，提交上游任务并保存任务 ID，之后由 FetchTask/ParseTaskResult 轮询；任务终态再执行实际额度调整。这条路径与同步 Chat 的差异是“请求返回时上游任务还没有完成”，因此需要在提交前锁定预扣。</p>
+  </section>
+
+  <section id="glossary">
+    <h2>七、名词解释</h2>
+    <table>
+      <thead><tr><th>名词</th><th>含义</th><th>代码中的作用</th></tr></thead>
+      <tbody>
+        <tr><td>Gateway / 网关</td><td>对外统一接入、认证、调度和计费，对内调用多个 AI 上游的服务。</td><td>由 Router、Middleware、Controller、Relay 和 Service 共同组成。</td></tr>
+        <tr><td>Relay</td><td>把内部统一请求转发为下游供应商请求，并将下游响应转换回客户端格式的执行路径。</td><td><code>controller/relay.go</code> 与 <code>relay/</code>。</td></tr>
+        <tr><td>RelayFormat</td><td>客户端请求采用的入口协议类别，例如 OpenAI、Claude、Gemini、Rerank、Realtime。</td><td>决定 DTO 解析、处理器分支和返回错误格式。</td></tr>
+        <tr><td>Channel / 渠道</td><td>一个上游服务配置，包含供应商类型、Base URL、Key、模型能力、分组、优先级和权重。</td><td><code>model.Channel</code>；由 Distribute 选择。</td></tr>
+        <tr><td>Ability / 能力</td><td>渠道在某个分组下支持某个模型的关系记录。</td><td>选择器用它过滤 group/model/enabled/priority/weight。</td></tr>
+        <tr><td>Adaptor / 适配器</td><td>把统一 Relay 请求转换成某一上游协议的实现。</td><td>实现 URL、Header、Body、DoRequest、DoResponse。</td></tr>
+        <tr><td>Token</td><td>用户调用网关的访问凭证，不是模型输入 Token。</td><td>决定用户、额度、分组、模型限制及可选的指定渠道。</td></tr>
+        <tr><td>模型 Token</td><td>模型计费单位，通常由文本编码或媒体估算/上游 Usage 得到。</td><td>用于预扣、真实结算、日志和限流统计。</td></tr>
+        <tr><td>TokenGroup / UserGroup</td><td>渠道与价格策略的逻辑分组。</td><td>控制可用渠道、倍率、自动分组和跨组重试。</td></tr>
+        <tr><td>Channel Affinity / 渠道亲和性</td><td>按会话/业务 Key 在一段 TTL 内复用同一个渠道。</td><td>缓存 Key → Channel ID，减少多轮请求漂移。</td></tr>
+        <tr><td>Priority / Weight</td><td>Priority 决定故障切换层级；Weight 决定同层候选的随机比例。</td><td>选择器先 priority 后 weight。</td></tr>
+        <tr><td>RelayInfo</td><td>一次 Relay 请求的运行时上下文。</td><td>贯穿用户、模型、渠道元数据、计费、重试、流状态和响应审计。</td></tr>
+        <tr><td>Pre-consume / 预扣</td><td>上游调用前先锁定预计需要的额度。</td><td>防止用户在请求执行期间额度被并发消耗。</td></tr>
+        <tr><td>Settle / 结算</td><td>收到真实 Usage 后将预扣调整为实际消费。</td><td>差额补扣或退款。</td></tr>
+        <tr><td>Pass-through</td><td>保留客户端请求体或部分 Header，不做完整的标准格式转换。</td><td>由全局/渠道设置控制，仍可能叠加覆盖操作。</td></tr>
+        <tr><td>StreamScanner</td><td>流式响应扫描器。</td><td>解析 SSE/事件、记录首字节/结束原因、处理客户端断开和上游异常。</td></tr>
+        <tr><td>RetryParam</td><td>渠道重试状态。</td><td>保存当前 retry 次数、分组、模型和请求路径。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="self-check">
+    <h2>八、分析步骤、观察记录与自检机制</h2>
+    <p class="lead">本节是本次代码分析的可审计记录；没有把项目现有文档当作事实来源，结论均以代码调用关系和数据流为准。</p>
+    <div class="two-col">
+      <div class="card"><h3>分析步骤记录</h3><ol><li>从 <code>router/relay-router.go</code> 确认所有网关入口和中间件顺序。</li><li>沿着 <code>TokenAuth → Distribute → Relay</code> 追踪 Context 中的身份、分组和渠道数据。</li><li>读取 <code>GetAndValidateRequest → GenRelayInfo → EstimateRequestToken → ModelPriceHelper</code>，确认预扣在上游调用前发生。</li><li>读取 <code>controller/relay.go</code> 的 retry loop，确认渠道切换条件与回退路径。</li><li>读取 <code>relay/compatible_handler.go</code> 和 <code>relay/channel/adapter.go</code>，确认下游请求转换和响应解析边界。</li><li>读取 <code>billing.go</code>、<code>log_info_generate.go</code> 和任务适配器，补齐结算、审计和异步任务路径。</li><li>用流程图和架构图把代码调用关系压缩成可读的工程文档。</li></ol></div>
+      <div class="card"><h3>观察 Agent 记录</h3><p>观察 agent 被分配为独立记录者，负责检查主分析是否覆盖 Router、鉴权、分发、计费、重试、适配器、响应和日志八个边界，并提出遗漏风险：</p><ul><li>不要把“普通 Token”误写成固定渠道绑定。</li><li>不要把预扣额度误写成最终消费额度。</li><li>要区分指定渠道、渠道亲和性和失败重试。</li><li>要覆盖 SSE/WebSocket 和异步任务，不只写 Chat JSON。</li><li>要说明下游供应商差异由 Adaptor 吸收。</li></ul><p class="small">记录目的：在交付前对照自检清单逐项核对，而不是只凭概念性架构描述。</p></div>
+    </div>
+    <h3>交付前自检清单</h3>
+    <ul class="check">
+      <li>入口是否包含统一协议、模型列表、Realtime、任务接口的代表路径。</li>
+      <li>鉴权是否解释了 Token 有效期/额度、IP、用户状态、分组和模型限制的实际边界。</li>
+      <li>渠道选择是否同时覆盖指定渠道、亲和缓存、优先级、权重和自动跨组。</li>
+      <li>计费是否区分 Token 预估、价格预扣、真实 Usage 结算和失败退款。</li>
+      <li>请求体在 Distributor、校验和每次 retry 之后是否都能通过 BodyStorage 复位重读。</li>
+      <li>下游是否说明 Adaptor 的 URL/Header/Body/Response 四个边界，以及多 Key 轮换。</li>
+      <li>响应是否覆盖普通 JSON、SSE、WebSocket、错误和异步轮询。</li>
+      <li>是否说明亲和缓存失效、skip_retry、指定渠道、status mapping 和 auto-ban 的边界。</li>
+      <li>是否覆盖 Redis/内存缓存、数据库兼容和限流降级路径。</li>
+      <li>图和文字是否能够互相验证，关键结论是否有源码路径和行号。</li>
+      <li>HTML 是否能脱离项目文档直接打开，SVG 是否在窄屏和滚动容器中可读。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>九、关键代码索引</h2>
+    <table>
+      <thead><tr><th>关注点</th><th>文件</th><th>关键入口</th></tr></thead>
+      <tbody>
+        <tr><td>进程级上下文</td><td class="path">/Users/benjamin/Documents/github/new-api/main.go</td><td><code>176-201</code>：Recovery、Request ID、版本、I18n、Logger、Session</td></tr>
+        <tr><td>路由</td><td class="path">/Users/benjamin/Documents/github/new-api/router/relay-router.go</td><td><code>SetRelayRouter</code></td></tr>
+        <tr><td>鉴权</td><td class="path">/Users/benjamin/Documents/github/new-api/middleware/auth.go</td><td><code>TokenAuth</code> / <code>SetupContextForToken</code></td></tr>
+        <tr><td>分发</td><td class="path">/Users/benjamin/Documents/github/new-api/middleware/distributor.go</td><td><code>Distribute</code> / <code>SetupContextForSelectedChannel</code></td></tr>
+        <tr><td>请求体复用</td><td class="path">/Users/benjamin/Documents/github/new-api/common/gin.go</td><td><code>GetBodyStorage</code> / <code>UnmarshalBodyReusable</code></td></tr>
+        <tr><td>Relay 主循环</td><td class="path">/Users/benjamin/Documents/github/new-api/controller/relay.go</td><td><code>Relay</code> / <code>getChannel</code> / <code>shouldRetry</code></td></tr>
+        <tr><td>请求转换与下游调用</td><td class="path">/Users/benjamin/Documents/github/new-api/relay/compatible_handler.go</td><td><code>TextHelper</code></td></tr>
+        <tr><td>适配器契约</td><td class="path">/Users/benjamin/Documents/github/new-api/relay/channel/adapter.go</td><td><code>Adaptor</code> / <code>TaskAdaptor</code></td></tr>
+        <tr><td>Token 估算</td><td class="path">/Users/benjamin/Documents/github/new-api/service/token_counter.go</td><td><code>EstimateRequestToken</code> / <code>CountTextToken</code></td></tr>
+        <tr><td>价格与计费</td><td class="path">/Users/benjamin/Documents/github/new-api/relay/helper/price.go</td><td><code>ModelPriceHelper</code></td></tr>
+        <tr><td>预扣与结算</td><td class="path">/Users/benjamin/Documents/github/new-api/service/billing.go</td><td><code>PreConsumeBilling</code> / <code>SettleBilling</code></td></tr>
+        <tr><td>亲和性</td><td class="path">/Users/benjamin/Documents/github/new-api/service/channel_affinity.go</td><td><code>GetPreferredChannelByAffinity</code> / <code>RecordChannelAffinity</code></td></tr>
+        <tr><td>渠道缓存选择</td><td class="path">/Users/benjamin/Documents/github/new-api/model/channel_cache.go</td><td><code>GetRandomSatisfiedChannel</code>：priority + weight</td></tr>
+        <tr><td>流式响应</td><td class="path">/Users/benjamin/Documents/github/new-api/relay/helper/stream_scanner.go</td><td><code>StreamScannerHandler</code></td></tr>
+        <tr><td>日志审计</td><td class="path">/Users/benjamin/Documents/github/new-api/service/log_info_generate.go</td><td><code>GenerateTextOtherInfo</code> / quota saturation audit</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>文档由代码调用关系分析生成；文件可直接用浏览器打开：<code>gateway-technical-documentation.html</code></footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>协议适配器 · new-api 网关</title><link rel="stylesheet" href="assets/gateway.css"></head><body data-current="adapters"><main class="shell"><header class="hero"><div class="eyebrow">Chapter 06 · Adapters</div><h1>从统一入口到供应商协议</h1><p>RelayFormat 描述客户端入口，Channel Type 描述下游供应商。Adaptor 吸收 URL、认证头、请求体和响应差异。</p></header><nav aria-label="文档导航"><a href="index.html">总览</a><a href="01-request-lifecycle.html">链路</a><a data-nav="adapters" href="06-protocol-adapters.html">适配器</a><a href="07-streaming-async.html">流式任务</a><a href="09-protocol-reference.html">协议参考</a></nav>
+<section><h2>一条同步请求</h2><div class="diagram"><img src="assets/protocol-matrix.svg" alt="入口 RelayFormat 映射到供应商 Adaptor 的协议矩阵" style="width:100%"></div><ol><li><code>relay.GetAdaptor(apiType)</code> 根据渠道类型创建实现。</li><li><code>relay/compatible_handler.go</code> 应用模型映射、pass-through、参数/请求头覆盖。</li><li>Adaptor 构建 URL/Header/Body，<code>DoRequest</code> 调用上游。</li><li><code>DoResponse</code> 解析 JSON、SSE 或错误，写入 Usage 与 <code>RelayInfo</code>。</li></ol></section>
+<section><h2>Adaptor 契约（代码真实接口）</h2><pre>type Adaptor interface {
+ Init(info *relaycommon.RelayInfo)
+ GetRequestURL(info *relaycommon.RelayInfo) (string, error)
+ SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error
+ ConvertOpenAIRequest(...); ConvertRerankRequest(...)
+ ConvertEmbeddingRequest(...); ConvertAudioRequest(...)
+ ConvertImageRequest(...); ConvertOpenAIResponsesRequest(...)
+ ConvertClaudeRequest(...); ConvertGeminiRequest(...)
+ DoRequest(c *gin.Context, info *RelayInfo, body io.Reader) (any,error)
+ DoResponse(c *gin.Context, resp *http.Response, info *RelayInfo) (any,*types.NewAPIError)
+ GetModelList() []string; GetChannelName() string
+}</pre><p class="caption">完整签名见 <code>relay/channel/adapter.go</code>。不要在文档或新适配器中虚构 Usage/Error 方法；Usage 由各实现的 DoResponse 结果进入公共结算路径。</p></section>
+<section><h2>请求入口与转换矩阵</h2><table><thead><tr><th>入口</th><th>RelayFormat/转换方法</th><th>典型下游</th><th>响应形态</th></tr></thead><tbody><tr><td><code>/v1/chat/completions</code></td><td>OpenAI → <code>ConvertOpenAIRequest</code></td><td>OpenAI-compatible、Claude、Gemini 等</td><td>JSON/SSE</td></tr><tr><td><code>/v1/responses</code></td><td><code>ConvertOpenAIResponsesRequest</code></td><td>Responses/Codex 兼容渠道</td><td>JSON/SSE</td></tr><tr><td><code>/v1/messages</code></td><td><code>ConvertClaudeRequest</code></td><td>Anthropic/兼容渠道</td><td>JSON/SSE</td></tr><tr><td><code>/v1beta/models/*path</code></td><td><code>ConvertGeminiRequest</code></td><td>Gemini/Vertex</td><td>JSON/SSE</td></tr><tr><td><code>/v1/rerank</code></td><td><code>ConvertRerankRequest</code></td><td>Cohere/Jina/阿里云</td><td>JSON</td></tr><tr><td>Embedding/Image/Audio</td><td>对应 Convert* 方法</td><td>供应商专用接口</td><td>JSON/二进制</td></tr></tbody></table></section>
+<section><h2>TaskAdaptor：异步供应商</h2><pre>ValidateRequestAndSetAction → EstimateBilling → BuildRequestURL/Header/Body
+→ DoRequest/DoResponse (taskID) → FetchTask → ParseTaskResult
+→ AdjustBillingOnSubmit / AdjustBillingOnComplete</pre><p><code>EstimateBilling</code> 在提交前产生时长、尺寸等倍率；<code>AdjustBillingOnSubmit</code> 可依据上游实际参数修正；终态由 <code>AdjustBillingOnComplete</code> 返回实际 quota。实现必须保证倍率有界且非负。</p><p class="caption">接口定义：<code>relay/channel/adapter.go:TaskAdaptor</code>；任务入口：<code>controller/relay.go:RelayTask</code> 及对应 task controller。</p></section>
+<section><h2>新增适配器检查表</h2><ul><li>注册 ChannelType/APIType，并声明支持的模型与路径。</li><li>实现 URL、Header、请求体和错误/响应解析；保留请求显式零值。</li><li>确认是否支持 StreamOptions，并加入流式支持集合。</li><li>DoResponse 能提取真实 Usage 或明确无 Usage 的安全回退。</li><li>模型映射、参数覆盖、代理、超时和多 Key 行为可测试。</li><li>为正常、流式、上游 4xx/5xx、空 Usage 和重试编写契约测试。</li></ul></section><footer>上一章：<a href="05-billing-usage.html">计费</a> · 下一章：<a href="07-streaming-async.html">流式与异步任务</a></footer></main><script src="assets/gateway-nav.js"></script></body></html>
