@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>余额击穿风险与计费一致性</title><link rel="stylesheet" href="assets/gateway.css"></head>
+<body data-current="billing"><main class="shell"><header class="hero"><div class="eyebrow">Billing safety deep dive</div><h1>余额击穿风险与计费一致性</h1><p>代码结论：当前预扣可以降低余额不足请求进入上游的概率，但钱包和普通 Token 仍存在被补扣或并发请求扣成负数的路径。</p></header>
+<nav aria-label="文档导航"><a href="index.html">总览</a> · <a href="05-billing-usage.html">计费与 Usage</a> · <a href="12-token-rate-limit.html">Token 限流</a> · <a href="13-token-rate-limit-semantics.html">限流语义</a> · <a data-nav="billing" href="14-balance-overdraft.html">余额击穿</a> · <a href="15-openai-claude-code-research.html">OpenAI / Claude 调研</a></nav>
+<section><div class="meta"><span>适合：计费维护者、资深开发者</span><span>阅读时长：8 分钟</span><span>结论来源：当前 Go 代码</span></div><h2>什么是余额击穿</h2><p>本文所说的“击穿”是指请求开始时余额看似足够，但预扣或最终补扣之后，钱包 <code>quota</code> 或访问 Token 的 <code>remain_quota</code> 变成负数，或者上游消费已经发生但本地结算失败。</p><table><thead><tr><th>路径</th><th>风险</th><th>结果</th></tr></thead><tbody><tr><td>实际消费大于预扣</td><td>最终 <code>delta &gt; 0</code> 直接补扣</td><td>钱包或 Token 可变为负数</td></tr><tr><td>多个请求并发预扣</td><td>先读余额、后扣减，缺少原子余额条件</td><td>多个请求同时通过检查</td></tr><tr><td>信任额度旁路</td><td>余额高于信任阈值时预扣为 0</td><td>最终消费全部在结算阶段扣除</td></tr><tr><td>订阅额度不足</td><td>订阅模型层拒绝超额结算</td><td>通常不写成负数，但上游消费可能已发生</td></tr></tbody></table></section>
+<section><h2>风险路径一：输出实际费用超过预扣</h2><p>普通倍率计费的预扣位于 <code>relay/helper/price.go:94-125</code>：</p><pre>preConsumedTokens = max(promptTokens, PreConsumedQuota)
++ maxTokens
+
+preConsumedQuota = preConsumedTokens
+× ModelRatio
+× GroupRatio</pre><p>最终结算位于 <code>service/text_quota.go:355-367</code>：</p><pre>actualQuota = (
+  promptQuota
+  + completionTokens × CompletionRatio
+) × ModelRatio × GroupRatio
++ cache/image/audio/tool/otherRatios</pre><p class="note orange">普通倍率预扣没有对 <code>maxTokens</code> 应用 <code>CompletionRatio</code>。未传 <code>max_tokens</code> 时，普通倍率路径也不会自动为输出使用 8192 回退值；8192 回退只存在于阶梯表达式计费。</p><h3>示例</h3><pre>promptTokens = 1000
+maxTokens = 500
+CompletionRatio = 4
+ModelRatio = 1
+GroupRatio = 1
+
+预扣 = 1000 + 500 = 1500
+实际输出 300 Token 时：
+实际费用 = 1000 + 300 × 4 = 2200
+补扣 delta = 2200 - 1500 = 700</pre><p>若预扣后只剩 100 额度，补扣 700 后余额可能成为 -600。</p></section>
+<section><h2>风险路径二：扣减不是原子余额检查</h2><p>钱包扣减见 <code>model/user.go:1257-1279</code>：</p><pre>UPDATE users
+SET quota = quota - ?
+WHERE id = ?</pre><p>Token 扣减见 <code>model/token.go:412-438</code>：</p><pre>UPDATE tokens
+SET remain_quota = remain_quota - ?,
+    used_quota = used_quota + ?
+WHERE id = ?</pre><p>两个更新都没有 <code>quota &gt;= amount</code> 或 <code>remain_quota &gt;= amount</code> 条件。预扣前余额读取与实际扣减也不是同一个原子操作。</p><h3>并发示例</h3><pre>初始余额 = 1000
+请求 A 读取 1000，准备预扣 800
+请求 B 读取 1000，准备预扣 800
+A 扣减成功
+B 扣减成功
+最终余额 = -600</pre></section>
+<section><h2>结算如何补扣</h2><p><code>service/billing_session.go:41-78</code> 使用：</p><pre>delta = actualQuota - preConsumedQuota</pre><table><thead><tr><th>delta</th><th>动作</th></tr></thead><tbody><tr><td><code>&gt; 0</code></td><td>钱包/订阅和 Token 补扣</td></tr><tr><td><code>&lt; 0</code></td><td>退还差额</td></tr><tr><td><code>= 0</code></td><td>不调整</td></tr></tbody></table><p>钱包补扣调用 <code>WalletFunding.Settle</code>，随后 Token 补扣调用 <code>DecreaseTokenQuota</code>。若资金来源已结算但 Token 调整失败，代码记录系统错误并将会话标记为已结算，避免错误退款，但可能留下资金和 Token 统计不一致。</p></section>
+<section><h2>订阅、钱包和 Token 的差异</h2><table><thead><tr><th>资金/额度来源</th><th>超额行为</th><th>代码证据</th></tr></thead><tbody><tr><td>钱包</td><td>普通算术扣减，没有数据库余额下限条件</td><td><code>model/user.go:1274</code></td></tr><tr><td>访问 Token</td><td>普通算术扣减，没有数据库余额下限条件</td><td><code>model/token.go:431</code></td></tr><tr><td>订阅</td><td>模型层检查使用量不能超过总额度，超额返回错误</td><td><code>model/subscription.go:1499-1519</code></td></tr><tr><td>无限 Token</td><td>跳过 Token 余额不足检查，但仍受资金来源策略影响</td><td><code>service/quota.go:397-404</code></td></tr></tbody></table></section>
+<section><h2>严格防止击穿需要什么</h2><ol><li>普通倍率预扣按 <code>maxTokens × CompletionRatio</code> 预留输出费用，并计入缓存、图片、音频、工具调用和其他可提前确定的费用。</li><li>未传 <code>max_tokens</code> 时使用协议/模型安全上限，或根据余额反算允许的最大输出 Token。</li><li>钱包扣减使用原子条件更新：<code>WHERE id=? AND quota&gt;=?</code>，并检查 <code>RowsAffected==1</code>。</li><li>Token 扣减使用原子条件更新：无限额度与有限额度分支明确隔离。</li><li>钱包、Token、订阅预留和退款应处于可恢复的一致性协议中；至少保证任何一步失败时都有幂等补偿记录。</li><li>并发测试覆盖：同一用户、同一 Token、多个请求同时预扣；最终余额不得小于 0。</li></ol><p class="note red">只修改预扣公式不能解决并发击穿；只增加数据库条件也不能解决预扣不足后的上游经济损失。两部分必须同时处理。</p></section>
+<section><h2>排障检查点</h2><table><thead><tr><th>现象</th><th>检查位置</th></tr></thead><tbody><tr><td>钱包余额负数</td><td><code>model/user.go:DecreaseUserQuota</code>、<code>service/funding_source.go:WalletFunding.Settle</code></td></tr><tr><td>Token remain_quota 负数</td><td><code>model/token.go:DecreaseTokenQuota</code>、<code>service/billing_session.go:Settle</code></td></tr><tr><td>预扣明显小于最终费用</td><td><code>relay/helper/price.go:ModelPriceHelper</code> 与 <code>service/text_quota.go</code> 的公式差异</td></tr><tr><td>订阅结算失败</td><td><code>model.PostConsumeUserSubscriptionDelta</code> 和消费日志中的订阅字段</td></tr><tr><td>并发后余额异常</td><td>检查是否启用批量更新、Redis 缓存变更和数据库最终额度</td></tr></tbody></table></section>
+<div class="next"><a href="13-token-rate-limit-semantics.html">← Token 限流语义</a><a href="15-openai-claude-code-research.html">OpenAI / Claude 调研 →</a></div></main><script src="assets/gateway-nav.js"></script></body></html>

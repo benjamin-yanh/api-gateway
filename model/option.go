@@ -208,6 +208,9 @@ func validateOptionValue(key string, value string) error {
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
+	if err := operation_setting.ValidateQuotaSettingOption(key, value); err != nil {
+		return err
+	}
 	return nil
 }
 

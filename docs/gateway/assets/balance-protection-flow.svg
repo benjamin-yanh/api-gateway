@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="900" viewBox="0 0 1240 900" role="img" aria-label="最后一百万 Token 余额保护当前请求流程和失败分支">
+  <title>余额保护当前请求流程</title>
+  <desc>输入估算后计算阈值和单请求前瞻，未命中走普通路径，命中后计算有效输出、预扣完整有限余额、只调用一次上游并按 Usage 结算。</desc>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 8 3 0 6z" fill="#496d99"/></marker>
+    <style>
+      .box{fill:#e9f0ff;stroke:#6a8fd2;stroke-width:2}.decision{fill:#fff5e7;stroke:#e09a3e;stroke-width:2}
+      .safe{fill:#e6f7f0;stroke:#2c9b78;stroke-width:2}.error{fill:#fff0f3;stroke:#df5172;stroke-width:2}
+      .future{fill:#fbf8ff;stroke:#9b72df;stroke-width:2;stroke-dasharray:8 6}.line{stroke:#496d99;stroke-width:2;fill:none;marker-end:url(#a)}
+      .title{font:700 22px sans-serif;fill:#182230}.text{font:700 14px sans-serif;fill:#182230}.small{font:12px sans-serif;fill:#5b6b7f}
+    </style>
+  </defs>
+  <text class="title" x="40" y="38">CURRENT · 请求级余额保护流程</text>
+  <rect class="box" x="410" y="65" width="420" height="70" rx="12"/>
+  <text class="text" x="620" y="95" text-anchor="middle">鉴权 / 模型校验 / 输入 Token 估算</text>
+  <text class="small" x="620" y="118" text-anchor="middle">auto group 已解析为真实分组</text>
+  <rect class="decision" x="400" y="180" width="440" height="90" rx="12"/>
+  <text class="text" x="620" y="212" text-anchor="middle">余额 ≤ 最贵候选阈值 + 本次最坏费用？</text>
+  <text class="small" x="620" y="238" text-anchor="middle">防止一笔请求从阈值外直接穿透</text>
+  <path class="line" d="M620 135v45"/>
+
+  <rect class="box" x="80" y="320" width="300" height="80" rx="12"/>
+  <text class="text" x="230" y="352" text-anchor="middle">否：普通路径</text>
+  <text class="small" x="230" y="378" text-anchor="middle">保持原 trust / retry / 预扣行为</text>
+  <path class="line" d="M400 225H230v95"/>
+  <text class="small" x="265" y="216">否</text>
+
+  <rect class="safe" x="470" y="320" width="300" height="90" rx="12"/>
+  <text class="text" x="620" y="352" text-anchor="middle">是：反算 effective max</text>
+  <text class="small" x="620" y="378" text-anchor="middle">client / policy / affordable 取最小</text>
+  <path class="line" d="M620 270v50"/>
+  <text class="small" x="632" y="300">是</text>
+
+  <rect class="decision" x="470" y="455" width="300" height="80" rx="12"/>
+  <text class="text" x="620" y="487" text-anchor="middle">可承担输出 ≥ minimum？</text>
+  <text class="small" x="620" y="513" text-anchor="middle">不足时不调用 Provider</text>
+  <path class="line" d="M620 410v45"/>
+  <rect class="error" x="850" y="455" width="280" height="80" rx="12"/>
+  <text class="text" x="990" y="487" text-anchor="middle">HTTP 403</text>
+  <text class="small" x="990" y="513" text-anchor="middle">InsufficientUserQuota</text>
+  <path class="line" d="M770 495h80"/>
+
+  <rect class="safe" x="430" y="580" width="380" height="90" rx="12"/>
+  <text class="text" x="620" y="612" text-anchor="middle">完整有限可用额度严格预扣</text>
+  <text class="small" x="620" y="638" text-anchor="middle">禁 trust；钱包 / Token 各自条件 UPDATE</text>
+  <path class="line" d="M620 535v45"/>
+
+  <rect class="safe" x="430" y="715" width="380" height="90" rx="12"/>
+  <text class="text" x="620" y="747" text-anchor="middle">DTO + final JSON clamp → Provider</text>
+  <text class="small" x="620" y="773" text-anchor="middle">只允许一个 dispatch；Usage 结算后退差额</text>
+  <path class="line" d="M620 670v45"/>
+
+  <rect class="future" x="855" y="700" width="300" height="120" rx="12"/>
+  <text class="text" x="1005" y="737" text-anchor="middle">FUTURE</text>
+  <text class="small" x="1005" y="765" text-anchor="middle">流中 95% 取消 / 持久对账</text>
+  <text class="small" x="1005" y="788" text-anchor="middle">Background / Realtime 终态</text>
+</svg>

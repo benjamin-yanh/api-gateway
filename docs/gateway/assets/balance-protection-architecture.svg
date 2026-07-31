@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="最后一百万 Token 余额保护架构，区分当前实现和后续目标">
+  <title>最后 1M Token 余额保护架构</title>
+  <desc>上半部分为当前实现：能力和价格读取、预算决策、完整有限余额预扣、协议限制与结算。下半部分虚线为后续持久预留、流式取消和对账。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 8 3 0 6z" fill="#496d99"/></marker>
+    <style>
+      .lane{fill:#f8fbff;stroke:#d4dfeb;stroke-width:2}.future{fill:#fbf8ff;stroke:#9b72df;stroke-width:2;stroke-dasharray:8 6}
+      .box{fill:#e9f0ff;stroke:#6a8fd2;stroke-width:2}.safe{fill:#e6f7f0;stroke:#2c9b78;stroke-width:2}
+      .warn{fill:#fff5e7;stroke:#e09a3e;stroke-width:2}.line{stroke:#496d99;stroke-width:2;fill:none;marker-end:url(#arrow)}
+      .title{font:700 22px sans-serif;fill:#182230}.head{font:700 15px sans-serif;fill:#315d9b}.text{font:700 14px sans-serif;fill:#182230}.small{font:12px sans-serif;fill:#5b6b7f}
+    </style>
+  </defs>
+  <text class="title" x="40" y="38">最后 1M Token 余额保护</text>
+  <rect class="lane" x="30" y="60" width="1220" height="390" rx="18"/>
+  <text class="head" x="55" y="90">CURRENT · 基础一期已实现</text>
+  <rect class="box" x="70" y="135" width="210" height="100" rx="12"/>
+  <text class="text" x="175" y="173" text-anchor="middle">能力 / 价格 / DB 余额</text>
+  <text class="small" x="175" y="198" text-anchor="middle">enabled Ability 保守超集</text>
+  <text class="small" x="175" y="218" text-anchor="middle">钱包 / 订阅 / Token</text>
+  <rect class="warn" x="350" y="135" width="230" height="100" rx="12"/>
+  <text class="text" x="465" y="170" text-anchor="middle">ApplyBalanceProtection</text>
+  <text class="small" x="465" y="196" text-anchor="middle">阈值 + 单请求前瞻</text>
+  <text class="small" x="465" y="216" text-anchor="middle">反算 effective max</text>
+  <rect class="safe" x="650" y="135" width="230" height="100" rx="12"/>
+  <text class="text" x="765" y="170" text-anchor="middle">严格预扣</text>
+  <text class="small" x="765" y="196" text-anchor="middle">完整有限可用额度</text>
+  <text class="small" x="765" y="216" text-anchor="middle">钱包 / Token 单表条件 UPDATE</text>
+  <rect class="box" x="950" y="135" width="240" height="100" rx="12"/>
+  <text class="text" x="1070" y="170" text-anchor="middle">协议出站限制</text>
+  <text class="small" x="1070" y="196" text-anchor="middle">DTO → Adaptor → Override</text>
+  <text class="small" x="1070" y="216" text-anchor="middle">final clamp 只降不升</text>
+  <path class="line" d="M280 185h70M580 185h70M880 185h70"/>
+  <rect class="safe" x="350" y="300" width="230" height="90" rx="12"/>
+  <text class="text" x="465" y="335" text-anchor="middle">单次 Provider attempt</text>
+  <text class="small" x="465" y="360" text-anchor="middle">dispatch 后禁止渠道重试</text>
+  <rect class="safe" x="650" y="300" width="260" height="90" rx="12"/>
+  <text class="text" x="780" y="335" text-anchor="middle">Usage 结算 / 审计</text>
+  <text class="small" x="780" y="360" text-anchor="middle">未知 Usage 保留全部预扣</text>
+  <path class="line" d="M1070 235v110H580M580 345h70"/>
+
+  <rect class="future" x="30" y="480" width="1220" height="200" rx="18"/>
+  <text class="head" x="55" y="512">FUTURE · 尚未实现</text>
+  <rect class="future" x="90" y="545" width="260" height="90" rx="12"/>
+  <text class="text" x="220" y="580" text-anchor="middle">持久 Reservation</text>
+  <text class="small" x="220" y="606" text-anchor="middle">跨资金源事务 / Saga / 幂等退款</text>
+  <rect class="future" x="500" y="545" width="260" height="90" rx="12"/>
+  <text class="text" x="630" y="580" text-anchor="middle">流式与异步取消</text>
+  <text class="small" x="630" y="606" text-anchor="middle">SSE / Background / Realtime</text>
+  <rect class="future" x="910" y="545" width="260" height="90" rx="12"/>
+  <text class="text" x="1040" y="580" text-anchor="middle">终态对账与崩溃恢复</text>
+  <text class="small" x="1040" y="606" text-anchor="middle">价格快照 / CAS / 人工复核</text>
+</svg>

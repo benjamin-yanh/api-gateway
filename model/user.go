@@ -17,6 +17,8 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var ErrInsufficientQuota = errors.New("insufficient quota")
+
 const UserNameMaxLength = 20
 
 var userSortColumns = map[string]string{
@@ -1277,6 +1279,34 @@ func decreaseUserQuota(id int, quota int) (err error) {
 		return err
 	}
 	return err
+}
+
+// DecreaseUserQuotaIfEnough atomically reserves wallet quota without allowing
+// the persisted balance to become negative. It intentionally bypasses batch
+// updates because strict balance protection requires the database to be the
+// serialization point for concurrent requests.
+func DecreaseUserQuotaIfEnough(id int, quota int) error {
+	if quota < 0 {
+		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	result := DB.Model(&User{}).
+		Where("id = ? AND quota >= ?", id, quota).
+		Update("quota", gorm.Expr("quota - ?", quota))
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return fmt.Errorf("%w: user quota is not enough", ErrInsufficientQuota)
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to decrease user quota cache: " + err.Error())
+		}
+	})
+	return nil
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {

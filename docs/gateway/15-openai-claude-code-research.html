@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="OpenAI API 与 Claude API、Claude Code 在 Token 限流、输出上限、计费和余额控制方面的公开机制调研，并给出 new-api 的设计建议。">
+  <title>OpenAI 与 Claude Code：Token 限流和计费机制调研</title>
+  <link rel="stylesheet" href="assets/gateway.css">
+</head>
+<body data-current="research">
+<main class="shell">
+  <header class="hero">
+    <div class="eyebrow">External design research · verified 2026-07-29</div>
+    <h1>OpenAI 与 Claude Code：Token 限流和计费机制调研</h1>
+    <p>研究结论：两家公开机制都把“模型输出上限、吞吐限流、费用控制”分开处理。公开资料没有显示它们默认按余额反算并静默改写 <code>max_tokens</code>；OpenAI 的 <code>max_tokens</code> 参与 TPM 估算，Claude 的 OTPM 则只按实时输出计数。</p>
+    <div class="chips"><span class="chip">OpenAI API</span><span class="chip">Claude API</span><span class="chip">Claude Code</span><span class="chip">new-api 设计参考</span></div>
+  </header>
+  <nav aria-label="文档导航"><a href="index.html">总览</a> · <a href="12-token-rate-limit.html">Token 限流</a> · <a href="13-token-rate-limit-semantics.html">限流语义</a> · <a href="14-balance-overdraft.html">余额击穿</a> · <a data-nav="research" href="15-openai-claude-code-research.html">外部机制调研</a></nav>
+  <section>
+    <div class="meta"><span>适合：网关、计费和平台开发者</span><span>阅读时长：12 分钟</span><span>资料范围：官方公开文档</span><span>核验日期：2026-07-29</span></div>
+    <h2>先说边界：Claude API 不等于 Claude Code</h2>
+    <p>Claude API 是模型服务接口；Claude Code 是运行在终端、IDE 或云端的 Agent 产品。Claude Code 可以使用 Claude 订阅、Anthropic Console API 预付费账号，也可以接入 Amazon Bedrock、Google Cloud 或 Microsoft Foundry。使用 API 认证时，Claude Code 的底层请求仍受组织和 Workspace 的 Claude API 计费、速率与支出限制。</p>
+    <p class="note">本文回答的是此前讨论的核心问题：输入/输出 Token 如何限流和计费、<code>max_tokens</code> 是否按余额变化、并发是否会导致余额击穿。它不是 OpenAI 与 Claude Code 的通用功能评测。</p>
+  </section>
+  <section>
+    <h2>一张图看懂四个控制平面</h2>
+    <div class="diagram">
+      <figure class="diagram-figure">
+        <img src="assets/openai-claude-limit-planes.svg" alt="OpenAI、Claude 与 new-api 的限流、计费、输出上限和并发预留对比">
+        <figcaption>模型上限、吞吐、支出和并发预留必须分别建模；其中任一层都不能替代另外三层。</figcaption>
+      </figure>
+    </div>
+    <p class="note orange">最容易产生误解的是：TPM/OTPM 是服务容量控制，不是余额锁；<code>max_tokens</code> 是请求输出边界，也不是最终账单。</p>
+  </section>
+  <section>
+    <h2>结论对比</h2>
+    <table>
+      <thead><tr><th>问题</th><th>OpenAI API</th><th>Claude API / Claude Code</th><th>对 new-api 的启示</th></tr></thead>
+      <tbody>
+        <tr><td>输入与输出是否分别收费</td><td>模型价格通常区分 input、cached input、output；最终按实际 Usage 计费。</td><td>API Token 消耗区分 input、output、cache read/write；Claude Code API 模式按 Token 消耗计费。</td><td>结算必须基于最终 Usage 与各倍率，不能把限流计数直接当账单。</td></tr>
+        <tr><td><code>max_tokens</code> 是否参与限流</td><td>官方指南称 TPM 计算取 <code>max_tokens</code> 与根据请求字符数估算 Token 的较大值，因此建议设置为接近期望输出。</td><td>OTPM 实时按实际生成 Token 计数；官方明确说明 <code>max_tokens</code> 不参与 OTPM。</td><td>两种限流模型都合理，但必须明确语义，不能混用。</td></tr>
+        <tr><td>输出限流发生在何时</td><td>公开指南侧重请求进入时的 TPM 预算与响应头；内部逐 Token 调度没有公开。</td><td>OTPM 在输出生成过程中实时评估，只计算实际输出。</td><td>若采用流式输出桶，应在扫描流时计量，而非等响应结束。</td></tr>
+        <tr><td>余额耗尽如何处理</td><td>预付余额耗尽后请求开始返回 billing quota 错误；官方也承认截断可能延迟并出现负余额。</td><td>组织月度 Spend Limit 达到后暂停；Claude Code 预付 Credit 不足会报错，订阅方案则按会话/周等使用窗口限制。</td><td>“永不负数”是比公开云平台更严格的目标，需要原子预留账本。</td></tr>
+        <tr><td>是否按余额反算 <code>max_tokens</code></td><td>公开资料未描述这种默认行为。</td><td>公开资料未描述这种默认行为；Claude Code 的输出上限配置主要约束响应和思考预算。</td><td>不应静默改写。可提供显式 <code>auto_clamp</code> 模式，并返回生效值。</td></tr>
+        <tr><td>并发隔离</td><td>Rate Limit 在组织/项目层，不是终端用户层；单用户限制应由应用自行实现。</td><td>API 限制在组织层，可为 Workspace 设置更低限制；Claude Code 团队建议按总体并发规划。</td><td>需要用户、Token、渠道、组织多层桶，以及余额 Reservation。</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section>
+    <h2>OpenAI：<code>max_tokens</code> 更像吞吐预占，不是金额预扣</h2>
+    <h3>公开限流模型</h3>
+    <p>OpenAI API 公布 RPM、RPD、TPM、TPD、IPM 等指标，限制在组织和项目层生效，并按模型或共享模型族统计。响应头返回请求和 Token 的 limit、remaining、reset 等信息。</p>
+    <pre>TPM admission estimate
+= max(request.max_tokens, estimated_tokens_from_request_characters)</pre>
+    <p>这解释了为什么把 <code>max_tokens</code> 填得非常大会降低并发吞吐：即使模型没有真的生成那么多 Token，入口侧的速率预算仍可能按较大值计算。官方建议把它设置得接近期望响应长度。</p>
+    <h3>公开计费模型</h3>
+    <p>预付 Credits 根据实际 API Usage 扣减；余额到零后请求会逐步返回 billing quota 错误。值得注意的是，OpenAI 官方帮助文档明确写出：由于计费和切断存在延迟，超额使用可能显示为负余额，并从下一次充值中扣除。</p>
+    <p class="note red">因此，不能用“OpenAI 会在请求前按 <code>max_tokens</code> 完整锁住费用”来解释其公开行为。公开资料支持的是 TPM 估算与实际 Usage 计费两条不同链路。</p>
+  </section>
+  <section>
+    <h2>Claude：输入先估后校，输出实时计数</h2>
+    <h3>Claude API 的 ITPM / OTPM</h3>
+    <p>Claude Messages API 将 Token 吞吐拆成 ITPM 和 OTPM，并使用 Token Bucket。ITPM 在请求开始时估算，随后按实际输入调整；对大多数模型，cache read 不计入 ITPM，input 与 cache creation 会计入。</p>
+    <pre>ITPM: estimate at request start → reconcile to actual input
+OTPM: count actual output tokens while they are produced
+max_tokens: does not reserve OTPM</pre>
+    <p>这是一种更贴近实时使用量的输出限流方式。高 <code>max_tokens</code> 不会单独压低 OTPM 可用量，但实际输出越多，实时消耗的 OTPM 越多。</p>
+    <h3>Claude Code 的产品层控制</h3>
+    <ul>
+      <li>API 认证：按 API Token 消耗计费，<code>/usage</code> 在本地依据 Token 和标准目录价估算；Console 才是权威账单。</li>
+      <li>订阅认证：显示会话、周、模型专项等使用窗口；它不是用户钱包的逐请求余额。</li>
+      <li>组织治理：首次 Console 登录会建立 Claude Code Workspace，可配置 Workspace spend/rate limit，避免开发工具挤占生产工作负载。</li>
+      <li>上下文治理：自动压缩、Prompt Cache、清理无关会话、选择更便宜模型，从源头降低输入 Token。</li>
+      <li>并发治理：官方排障建议减少并行子 Agent 或工具并发；团队限额按组织总体并发规划，而不是平均值硬切到每个人。</li>
+    </ul>
+    <p class="note orange"><code>--max-turns</code> 或 Agent 轮次限制控制的是 Agent 循环次数；<code>CLAUDE_CODE_MAX_OUTPUT_TOKENS</code> 控制单次模型输出边界。两者都不等同于“剩余余额可购买的 Token 数”。</p>
+  </section>
+  <section>
+    <h2>它们是否会根据余额自动设置 <code>max_tokens</code>？</h2>
+    <p><strong>根据公开资料，不能得出会这样做的结论。</strong> OpenAI 文档将 <code>max_tokens</code> 用于输出边界和 TPM 估算，将 Credits 用于实际 Usage 结算；Claude 文档将 <code>max_tokens</code> 用于输出边界，而 OTPM 只计实际生成。两者都用独立的余额、Spend Limit 或订阅使用窗口控制费用。</p>
+    <p>这是基于公开文档的工程推断，不是对两家公司内部实现的断言。它们的分布式账务锁、预留、延迟聚合和风控策略没有完整公开。</p>
+    <div class="two-col">
+      <div class="card"><h3>默认静默截断的问题</h3><p>相同请求在余额变化时得到不同的输出上限；Agent 可能在工具调用或结构化 JSON 中途被截断；并发请求还会争抢同一余额，导致每个请求的“可负担上限”瞬时变化。</p></div>
+      <div class="card"><h3>更可预测的接口</h3><p>保留客户端传入值。若不足，返回结构化错误和 <code>affordable_max_output_tokens</code>；只有客户端显式启用自动降档时，网关才改写，并通过响应头返回最终生效值。</p></div>
+    </div>
+  </section>
+  <section>
+    <h2>对 new-api 的推荐方案</h2>
+    <h3>推荐：四层分离</h3>
+    <ol>
+      <li><strong>模型层：</strong>验证上下文窗口与模型最大输出，不涉及余额。</li>
+      <li><strong>吞吐层：</strong>分别维护 RPM、输入 Token、输出 Token 桶；响应暴露 limit、remaining、reset。</li>
+      <li><strong>资金层：</strong>按预计最坏或配置的风险预算原子预留，按最终 Usage 结算差额。</li>
+      <li><strong>并发层：</strong>使用 Reservation Ledger，让 <code>available = balance - active_reserved</code>；Reservation 包含 request_id、TTL、状态和幂等键。</li>
+    </ol>
+    <h3>余额反算的安全公式</h3>
+    <pre>available_quota = balance - active_reserved - input_estimated_cost - fixed_cost
+
+affordable_output_tokens =
+  floor(available_quota /
+    (ModelRatio × GroupRatio × CompletionRatio × QuotaPerUnit))
+
+effective_max =
+  min(client_max, model_max, policy_max, affordable_output_tokens)</pre>
+    <p>公式只能提供“理论可负担上限”。图片、音频、工具调用、缓存写入、Tiered Expression、汇率与渠道附加倍率必须单独纳入；无法在入口确定的费用需要安全边际。</p>
+    <h3>三种产品策略</h3>
+    <table>
+      <thead><tr><th>策略</th><th>行为</th><th>体验</th><th>适用场景</th></tr></thead>
+      <tbody>
+        <tr><td>strict reject</td><td>客户端上限超出可负担范围即 402/403，返回建议上限</td><td>最可预测，不会静默改变语义</td><td>API、结构化输出、Agent 工具调用</td></tr>
+        <tr><td>explicit auto-clamp</td><td>仅在请求显式开启时改写，响应头返回原值和生效值</td><td>连续性好，但可能截断</td><td>交互式聊天、消费者产品</td></tr>
+        <tr><td>soft credit</td><td>允许小额负余额或信用额度，事后结算</td><td>最好，但平台承担损失风险</td><td>可信客户、后付费企业</td></tr>
+      </tbody>
+    </table>
+    <p class="note green">结合 OpenAI 与 Claude 的公开做法，默认更推荐“显式限额 + 实际 Usage 结算 + 独立速率桶”；若 new-api 必须保证永不负数，再增加原子 Reservation，而不是只靠动态修改 <code>max_tokens</code>。</p>
+  </section>
+  <section>
+    <h2>与当前 new-api 代码的差异</h2>
+    <table>
+      <thead><tr><th>当前代码事实</th><th>风险或差异</th><th>建议落点</th></tr></thead>
+      <tbody>
+        <tr><td>普通倍率预扣使用 prompt 与请求 <code>maxTokens</code></td><td>输出预扣未应用 <code>CompletionRatio</code>，与最终计费公式不完全一致</td><td><code>relay/helper/price.go:ModelPriceHelper</code></td></tr>
+        <tr><td>结算使用实际 prompt/completion/cache 等 Usage</td><td>实际费用高于预扣时会补扣</td><td><code>service/text_quota.go</code>、<code>service/billing_session.go</code></td></tr>
+        <tr><td>钱包和 Token 是算术扣减</td><td>缺少余额条件的原子更新，并发请求可能一起通过检查</td><td><code>model/user.go:DecreaseUserQuota</code>、<code>model/token.go:DecreaseTokenQuota</code></td></tr>
+        <tr><td>Token 限流按请求阶段做模型请求频率控制</td><td>不是输出流中的 OTPM，也不是资金 Reservation</td><td><code>middleware/model_rate_limit.go</code> 与流扫描器分层</td></tr>
+      </tbody>
+    </table>
+    <p>完整代码风险链路见《<a href="14-balance-overdraft.html">余额击穿风险与计费一致性</a>》；Token 限流语义见《<a href="13-token-rate-limit-semantics.html">Token 限流是请求限流还是响应限流</a>》。</p>
+  </section>
+  <section>
+    <h2>公开来源与证据等级</h2>
+    <table>
+      <thead><tr><th>来源</th><th>支持的结论</th><th>等级</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://developers.openai.com/api/docs/guides/rate-limits">OpenAI API Rate limits</a></td><td>RPM/TPM、组织/项目层、响应头、<code>max_tokens</code> 参与 TPM 估算</td><td>官方开发文档</td></tr>
+        <tr><td><a href="https://help.openai.com/en/articles/8264778-what-is-prepaid-billing">OpenAI Prepaid Billing</a></td><td>Credits 按 API Usage 扣减、自动充值、余额到零后的暂停</td><td>官方帮助中心</td></tr>
+        <tr><td><a href="https://help.openai.com/en/articles/8264644-how-can-i-set-up-prepaid-billing">OpenAI 预付费设置与延迟计费</a></td><td>余额耗尽错误、延迟切断、可能出现负余额</td><td>官方帮助中心</td></tr>
+        <tr><td><a href="https://platform.claude.com/docs/en/api/rate-limits">Claude API Rate limits</a></td><td>Token Bucket、ITPM/OTPM、输入估算校正、OTPM 实时计数、Workspace 限制</td><td>官方平台文档</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/costs">Claude Code Manage costs</a></td><td>API Token 计费、<code>/usage</code> 本地估算、Workspace、订阅窗口、成本优化</td><td>官方产品文档</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/errors">Claude Code Error reference</a></td><td>余额不足、429、并发建议、输出与 Thinking Budget 的关系</td><td>官方产品文档</td></tr>
+        <tr><td><a href="https://code.claude.com/docs/en/quickstart">Claude Code Quickstart</a></td><td>订阅、Console API、云厂商认证方式</td><td>官方产品文档</td></tr>
+      </tbody>
+    </table>
+    <p class="small">研究方法：只采用 OpenAI、Anthropic/Claude 官方公开资料；“未公开”表示在上述公开资料中没有找到，不代表内部一定不存在。云服务规则会变化，应以部署时的官方文档和控制台为准。</p>
+  </section>
+  <section>
+    <h2>自检问题</h2>
+    <ul class="check">
+      <li>能否区分 <code>max_tokens</code>、TPM/OTPM、实际 Usage 和余额？</li>
+      <li>能否解释为什么 OpenAI 建议降低 <code>max_tokens</code>，而 Claude 称提高它没有 OTPM 代价？</li>
+      <li>能否说明 Claude Code 订阅使用窗口与 API 预付 Credits 的区别？</li>
+      <li>若要求余额永不为负，是否同时设计了原子预留、最终结算和幂等退款？</li>
+      <li>自动降低输出上限时，客户端是否显式选择，并能看到最终生效值？</li>
+    </ul>
+  </section>
+  <div class="next"><a href="14-balance-overdraft.html">← 余额击穿</a><a href="16-balance-protection-max-token.html">最后 1M Token 余额保护方案 →</a></div>
+  <footer>本页为外部公开机制调研，不代表 OpenAI 或 Anthropic 未公开的内部实现。</footer>
+</main>
+<script src="assets/gateway-nav.js"></script>
+</body>
+</html>

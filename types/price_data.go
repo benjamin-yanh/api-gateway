@@ -8,28 +8,47 @@ import (
 )
 
 type GroupRatioInfo struct {
-	GroupRatio        float64
+	// GroupRatio 是本次请求实际生效的分组倍率。
+	GroupRatio float64
+	// GroupSpecialRatio 是用户分组到渠道分组的专属倍率覆盖值。
 	GroupSpecialRatio float64
-	HasSpecialRatio   bool
+	// HasSpecialRatio 表示是否以 GroupSpecialRatio 覆盖普通分组倍率。
+	HasSpecialRatio bool
 }
 
 type PriceData struct {
-	FreeModel            bool
-	ModelPrice           float64
-	ModelRatio           float64
-	CompletionRatio      float64
-	CacheRatio           float64
-	CacheCreationRatio   float64
+	// FreeModel 表示本次请求的有效价格为免费，应跳过预扣。
+	FreeModel bool
+	// ModelPrice 是固定价格计费值，结合 QuotaPerUnit 转换为额度。
+	ModelPrice float64
+	// ModelRatio 是按量计费时的每 Token 模型倍率。
+	ModelRatio float64
+	// CompletionRatio 是输出文本 Token 相对输入文本 Token 的倍率。
+	CompletionRatio float64
+	// CacheRatio 是缓存命中 Token 相对普通输入 Token 的倍率。
+	CacheRatio float64
+	// CacheCreationRatio 是默认缓存时长的缓存写入 Token 倍率。
+	CacheCreationRatio float64
+	// CacheCreation5mRatio 是 Claude 5 分钟缓存写入 Token 倍率。
 	CacheCreation5mRatio float64
+	// CacheCreation1hRatio 是 Claude 1 小时缓存写入 Token 倍率。
 	CacheCreation1hRatio float64
-	ImageRatio           float64
-	AudioRatio           float64
+	// ImageRatio 是多模态输入中图片 Token 的倍率。
+	ImageRatio float64
+	// AudioRatio 是音频输入 Token 的倍率。
+	AudioRatio float64
+	// AudioCompletionRatio 是音频输出 Token 在 AudioRatio 基础上的额外倍率。
 	AudioCompletionRatio float64
-	otherRatios          map[string]float64
-	UsePrice             bool
-	Quota                int // 按次计费的最终额度（MJ / Task）
-	QuotaToPreConsume    int // 按量计费的预消耗额度
-	GroupRatioInfo       GroupRatioInfo
+	// otherRatios 保存已校验的附加乘数，例如任务媒体选项；只能通过 AddOtherRatio 写入。
+	otherRatios map[string]float64
+	// UsePrice 表示使用固定价格计费，而不是按 Token 倍率计费。
+	UsePrice bool
+	// Quota 是按次/任务计费应用分组和附加倍率后的额度。
+	Quota int
+	// QuotaToPreConsume 是按量请求在调用上游前需要预扣的额度。
+	QuotaToPreConsume int
+	// GroupRatioInfo 记录本次计费使用的分组倍率及用户分组专属覆盖信息。
+	GroupRatioInfo GroupRatioInfo
 }
 
 func (p *PriceData) AddOtherRatio(key string, ratio float64) {

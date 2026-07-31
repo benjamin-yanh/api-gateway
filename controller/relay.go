@@ -69,7 +69,8 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 }
 
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
-
+	// Relay 负责同步转发主链路：请求校验、定价和预扣只执行一次，
+	// 渠道选择和上游调用可在同一笔计费会话内重试。
 	requestId := c.GetString(common.RequestIdKey)
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
@@ -80,6 +81,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
+		// Realtime 在解析请求前完成升级；后续转发错误必须通过 WebSocket 协议返回，
+		// 而不能写成 HTTP JSON 响应。
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -90,6 +93,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	defer func() {
+		// 将所有提前返回统一转换为 relayFormat 对应的客户端错误协议。
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
@@ -126,6 +130,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// 仅在敏感词检查或 Token 计数需要时构建完整元数据；
+	// 仅定价的请求使用轻量元数据，避免拼接大 Prompt。
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
@@ -153,10 +159,34 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
+	// Resolve the concrete group selected for an auto token before balance
+	// protection prices the request. ModelPriceHelper repeats this idempotently.
+	helper.HandleGroupRatio(c, relayInfo)
+	if err := service.ApplyBalanceProtection(relayInfo, request, tokens, meta); err != nil {
+		newAPIError = types.NewErrorWithStatusCode(
+			err,
+			types.ErrorCodeInsufficientUserQuota,
+			http.StatusForbidden,
+			types.ErrOptionWithSkipRetry(),
+			types.ErrOptionWithNoRecordErrorLog(),
+		)
+		return
+	}
+
+	// PriceData 同时保存本次定价策略和上游调用前需预留的额度，
+	// 并保留在 relayInfo 中供最终结算使用。
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		return
+	}
+	if relayInfo.BalanceProtectionActive && !priceData.FreeModel &&
+		relayInfo.BalanceProtectionAvailableQuota > priceData.QuotaToPreConsume {
+		// In the final balance zone, reserve the complete finite spendable
+		// balance. This intentionally serializes concurrent requests and covers
+		// add-on/tool/cache charges that cannot be predicted from max_tokens.
+		priceData.QuotaToPreConsume = relayInfo.BalanceProtectionAvailableQuota
+		relayInfo.PriceData = priceData
 	}
 
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
@@ -164,6 +194,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
 	} else {
+		// 一笔用户请求只预扣一次；各次渠道重试复用该预扣，
+		// 不得重复扣减额度。
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
 			return
@@ -171,16 +203,28 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
+		// 仅在上游失败且实际发生预扣时退款；成功路径由各协议处理器
+		// 根据真实 Usage 结算。
 		if newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
 			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
+				if relayInfo.BalanceProtectionActive && relayInfo.UpstreamRequestDispatched {
+					// An upstream error is not proof of zero provider cost.
+					// Retain the strict pre-consume for an unknown outcome.
+					if settleErr := relayInfo.Billing.Settle(relayInfo.FinalPreConsumedQuota); settleErr != nil {
+						logger.LogError(c, "failed to retain balance protection reservation: "+settleErr.Error())
+					}
+					logger.LogWarn(c, "balance protection retained pre-consumed quota after an unknown upstream outcome")
+				} else {
+					relayInfo.Billing.Refund(c)
+				}
 			}
 			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
 		}
 	}()
 
+	// 重试循环只切换渠道，不创建新的计费会话；下面通过 BodyStorage
+	// 重置请求体，确保每次上游尝试收到相同输入。
 	retryParam := &service.RetryParam{
 		Ctx:         c,
 		TokenGroup:  relayInfo.TokenGroup,
@@ -200,6 +244,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		// 在重置请求体前记录已尝试渠道，供日志和故障诊断使用。
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
@@ -213,6 +258,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		// 各协议处理器最终会调用当前选中渠道的 Adaptor。
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -225,6 +271,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			// 成功后结束重试；Usage 结算和日志由对应协议处理器完成。
 			relayInfo.LastError = nil
 			return
 		}
@@ -232,7 +279,14 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
+		// 在判断是否重试前记录渠道健康状态，并按配置处理自动封禁。
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+
+		// Strict mode reserves one provider attempt. Retrying after dispatch
+		// could create another full upstream bill without another reservation.
+		if relayInfo.BalanceProtectionActive && relayInfo.UpstreamRequestDispatched {
+			break
+		}
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break

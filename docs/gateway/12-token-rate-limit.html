@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Token 限流代码解析</title><link rel="stylesheet" href="assets/gateway.css"></head>
+<body data-current="token-limit"><main class="shell"><header class="hero"><div class="eyebrow">Code deep dive</div><h1>Token 限流代码解析</h1><p>本章区分访问 Token 的请求次数限流、Token 额度扣减和模型 Token 估算，避免把三个概念混为一谈。</p></header>
+<nav aria-label="文档导航"><a href="index.html">总览</a> · <a href="02-auth-context.html">鉴权上下文</a> · <a data-nav="token-limit" href="12-token-rate-limit.html">Token 限流</a> · <a href="05-billing-usage.html">计费</a> · <a href="08-configuration-reference.html">配置参考</a></nav>
+<section><div class="meta"><span>适合：普通 Go 开发者、维护者</span><span>阅读时长：8 分钟</span><span>前置：Gin middleware、Redis 基础</span></div><h2>先记住三个“Token”</h2><table><thead><tr><th>概念</th><th>代码</th><th>是否限流</th></tr></thead><tbody><tr><td>访问 Token</td><td><code>middleware/auth.go:TokenAuth</code></td><td>识别调用者，写入 user/token/group 上下文。</td></tr><tr><td>请求次数限制</td><td><code>middleware/model-rate-limit.go:ModelRequestRateLimit</code></td><td>按用户 ID、Token 分组在时间窗口内限制请求次数，超限 429。</td></tr><tr><td>模型 Token/额度</td><td><code>service/billing.go:PreConsumeBilling</code>、<code>SettleBilling</code></td><td>按估算和真实 Usage 扣减余额，不是 TPM 限流器。</td></tr></tbody></table></section>
+<section><h2>请求执行顺序</h2><pre>Router /v1 或 /v1beta
+  → TokenAuth
+      → 解析 Authorization / x-api-key / Gemini key / WebSocket 子协议
+      → ValidateUserToken
+      → SetupContextForToken
+          token id、user id、group、model limits、quota
+  → ModelRequestRateLimit
+      → enabled?
+      → Token group，否则 user group
+      → Redis 或内存限流
+  → Distribute → Relay → 计费预扣/结算</pre><p>路由挂载见 <code>router/relay-router.go:69-73</code> 和 <code>router/relay-router.go:189-194</code>。</p></section>
+<section><h2>ModelRequestRateLimit 的实现</h2><ol><li><code>setting.ModelRequestRateLimitEnabled</code> 为 false 时直接 <code>c.Next()</code>。</li><li>读取窗口、总请求数、成功请求数三个参数。</li><li>优先读取 <code>ContextKeyTokenGroup</code>，为空时回退到 <code>ContextKeyUserGroup</code>。</li><li>通过 <code>setting.GetGroupRateLimit</code> 覆盖全局限制。</li><li>Redis 模式使用成功请求 List + 总请求令牌桶；无 Redis 时使用 <code>common.InMemoryRateLimiter</code>。</li><li>被拒绝时返回 HTTP 429；请求完成且状态码小于 400 时才记录成功请求。</li></ol><p class="note">当前限制单位是“请求次数/时间窗口”，不是输入或输出 Token 数。<code>totalMaxCount=0</code> 表示不限制总请求数；成功数默认仍由配置决定。</p></section>
+<section><h2>Token 额度路径</h2><pre>relay/helper/price.go
+  → 估算 prompt/max_tokens/媒体和倍率
+  → PriceData.QuotaToPreConsume
+  → service.PreConsumeBilling
+  → service.NewBillingSession
+  → Provider
+  → Usage 或本地回退
+  → service.SettleBilling
+  → 补扣 / 退款 / 记录 quota saturation</pre><p><code>SetupContextForToken</code> 将非无限 Token 的 <code>RemainQuota</code> 写入 <code>token_quota</code>；真正的余额校验和扣减由 BillingSession 及其模型层调用完成。</p></section>
+<section><h2>配置和排障检查点</h2><table><thead><tr><th>问题</th><th>检查位置</th></tr></thead><tbody><tr><td>没有触发限流</td><td><code>setting/rate_limit.go</code> 中 enabled、全局计数和分组覆盖。</td></tr><tr><td>所有请求突然 429</td><td>Redis key <code>rateLimit:MRRL:&lt;userId&gt;</code>、<code>rateLimit:MRRLS:&lt;userId&gt;</code>，以及窗口时间。</td></tr><tr><td>Token 余额不足</td><td><code>service/billing_session.go</code> 的预扣路径，而不是 ModelRequestRateLimit。</td></tr><tr><td>限流按谁隔离</td><td>中间件使用 <code>c.GetInt("id")</code>；分组参数只决定该组的阈值。</td></tr><tr><td>Redis 不可用</td><td>确认 <code>common.RedisEnabled</code>；代码会走内存限流，实例间不共享计数。</td></tr></tbody></table></section>
+<section><h2>自检问题</h2><ul class="check"><li>为什么 TokenAuth 必须先于 ModelRequestRateLimit？</li><li>Token group 和 user group 哪一个优先？</li><li>为什么预扣额度不足返回的不是 429？</li><li>流式请求结束后，成功请求计数何时写入？</li></ul></section><div class="next"><a href="02-auth-context.html">← 鉴权上下文</a><a href="05-billing-usage.html">计费与 Usage →</a></div></main><script src="assets/gateway-nav.js"></script></body></html>

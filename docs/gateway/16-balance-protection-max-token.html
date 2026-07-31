@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>最后 1M Token 余额保护与 max-token 技术方案</title>
+  <link rel="stylesheet" href="assets/gateway.css">
+</head>
+<body data-current="balance-protection">
+<main class="shell">
+  <header class="hero">
+    <div class="eyebrow">Billing safety · phase 1 implementation</div>
+    <h1>最后 1M Token 余额保护与 max-token 技术方案</h1>
+    <p>当一笔请求可能进入“最贵可用模型输出 1M Token”的风险区时，网关提前切换到严格保护模式：按本次请求价格反算输出上限，分别对钱包与有限 Token 做数据库条件扣减，把有效上限写入上游协议。持久 Reservation、主动取消和跨进程对账属于后续阶段。</p>
+    <div class="chips">
+      <span class="chip">状态：第一阶段已实现，总开关默认关闭</span>
+      <span class="chip">优先级：账务安全高于响应长度</span>
+      <span class="chip">已覆盖：Chat / Responses / Claude / Gemini</span>
+      <span class="chip">数据库：SQLite / MySQL / PostgreSQL</span>
+    </div>
+  </header>
+
+  <nav aria-label="文档导航">
+    <a href="index.html">总览</a>
+    <a href="05-billing-usage.html">计费与 Usage</a>
+    <a href="14-balance-overdraft.html">余额击穿现状</a>
+    <a href="15-openai-claude-code-research.html">外部机制调研</a>
+    <a data-nav="balance-protection" href="16-balance-protection-max-token.html">余额保护方案</a>
+    <a href="08-configuration-reference.html">配置参考</a>
+    <a href="10-troubleshooting.html">排障</a>
+  </nav>
+
+  <section>
+    <div class="meta">
+      <span>适合：普通 Go 开发者、计费维护者、架构师</span>
+      <span>阅读时长：20–30 分钟</span>
+      <span>前置：额度预扣、Usage、SSE、事务基础</span>
+      <span>事实基线：2026-07-29 当前代码</span>
+    </div>
+    <h2>执行摘要</h2>
+    <p class="lead">“最后 1M Token”是进入严格模式的资金风险阈值，不是单请求可以输出 1M Token，也不是一百万 quota 单位。</p>
+    <div class="grid">
+      <div class="card"><span class="tag">触发</span><h3>阈值加一笔请求前瞻</h3><p>当前实现扫描用户可用分组内启用的 Ability 作为保守超集；当余额已在阈值内，或本次最坏费用可能跨入阈值时，提前进入保护区。</p></div>
+      <div class="card"><span class="tag">限额</span><h3>本次模型决定允许输出多少</h3><p>进入保护区后，使用本次请求模型的价格反算 <code>effective_max_tokens</code>，不会一直按最贵模型价格压缩所有请求。</p></div>
+      <div class="card"><span class="tag">并发</span><h3>保护区串行化余额风险</h3><p>第一阶段预扣完整有限可用额度，并分别使用钱包/Token 条件 UPDATE；竞争失败直接 403。两种资金资源尚不是同一事务。</p></div>
+      <div class="card"><span class="tag">未知 Usage</span><h3>不把未知当作零</h3><p>已发起上游请求后发生错误或 Usage 缺失时保留全部严格预扣，并禁止第二次渠道 dispatch；主动取消和持久对账仍是后续能力。</p></div>
+    </div>
+    <p class="note red"><strong>第一阶段安全边界：</strong>命中保护后，单次请求不会因渠道重试产生第二笔上游费用；钱包和有限 Token 各自不会被条件扣减成负数；无法确认 Usage 时不退款。跨表崩溃一致性、Provider 私有字段全覆盖和持久恢复尚未完成。</p>
+    <p class="note orange"><strong>实现边界：</strong>第一阶段已经落地阈值计算、DTO 限制、出站二次 Clamp、输出倍率预扣修正、保护区关闭 trust、钱包与有限 Token 的条件扣减和管理员审计。持久 Reservation、进程崩溃恢复、流中主动取消、Realtime 逐响应预算与自动退出滞回仍是后续阶段，本文用“后续设计”明确标记，不能把目标状态机误认为当前运行时状态。</p>
+  </section>
+
+  <section>
+    <h2>当前能力与目标能力</h2>
+    <table>
+      <thead><tr><th>环节</th><th>当前代码事实</th><th>本方案目标</th></tr></thead>
+      <tbody>
+        <tr><td>输入估算</td><td><code>controller/relay.go:154</code> 调用 <code>EstimateRequestToken</code>。</td><td>继续复用，并冻结本次定价快照。</td></tr>
+        <tr><td>未传 max</td><td>保护区内由 <code>ApplyBalanceProtection</code> 反算并写入有效上限；保护区外保持原行为。阶梯表达式仍用 8192 做普通预扣回退。</td><td>后续补充模型级硬上限元数据。</td></tr>
+        <tr><td>输出预扣</td><td>普通倍率已拆为输入费用和 <code>max × ModelRatio × CompletionRatio × GroupRatio</code> 输出费用。</td><td>补充缓存、工具和 reasoning 的统一保守缓冲。</td></tr>
+        <tr><td>钱包/Token 预扣</td><td>保护区调用 <code>DecreaseUserQuotaIfEnough</code> / <code>DecreaseTokenQuotaIfEnough</code>，同步条件更新并检查 <code>RowsAffected</code>。</td><td>把两种额度和持久 Reservation 合并为一个事务/Saga。</td></tr>
+        <tr><td>信任旁路</td><td>保护区设置 <code>ForcePreConsume=true</code>，<code>BillingSession.shouldTrust</code> 不再跳过预扣。</td><td>已完成。</td></tr>
+        <tr><td>协议上限</td><td>解析 DTO 先写一次；Adaptor 与 <code>param_override</code> 后调用 <code>EnforceBalanceProtectionLimit</code> 再写一次。严格模式关闭 BodyStorage 原样透传。</td><td>已覆盖 OpenAI、Responses、Claude、Gemini。</td></tr>
+        <tr><td>同步流取消</td><td>客户端断开后 <code>StreamScannerHandler</code> 关闭 <code>resp.Body</code>；请求响应头前未绑定下游 Context。</td><td>每次上游尝试使用可取消 Context，预算熔断可主动取消。</td></tr>
+        <tr><td>Background</td><td>Responses DTO 没有接收 <code>background</code>；保护命中后关闭 raw pass-through 并重建标准 DTO，字段会被丢弃，但尚无专用拒绝错误。</td><td>后续应显式解析并拒绝，完成 Cancel/终态查询后再开放。</td></tr>
+        <tr><td>最终结算</td><td><code>SettleBilling</code> 已支持补扣/退款，但会话状态主要在内存。</td><td>Usage、取消和补偿通过持久状态机恢复。</td></tr>
+      </tbody>
+    </table>
+    <p>详细风险证据见《<a href="14-balance-overdraft.html">余额击穿风险与计费一致性</a>》。本文以“已实现”和“后续设计”区分代码事实；配置默认关闭，升级后不会自动改变线上请求。</p>
+  </section>
+
+  <section>
+    <h2>真实场景：为什么选最后 1M</h2>
+    <pre>用户可用模型：
+  cheap-model  输出价格 = 2 quota / 1K tokens
+  pro-model    输出价格 = 20 quota / 1K tokens
+
+最贵模型 1M 输出成本：
+  20 × 1000 = 20,000 quota
+
+用户当前可用额度：
+  19,000 quota
+
+结论：
+  用户进入严格保护区。
+  如果本次请求 cheap-model，仍按 cheap-model 的单价反算输出上限；
+  pro-model 只用于判断“风险区已经到达”，不会替 cheap-model 定价。</pre>
+    <p>1M 是管理员可调的风险窗口。配置以“万 Token”为单位，默认值 <code>100</code>，运行时换算为 <code>100 × 10,000 = 1,000,000 Token</code>。它让高余额阶段保持现有体验，在接近资金底线时牺牲最长输出和部分性能，以换取可证明的损失边界。</p>
+    <p class="note orange">阈值不能直接读取页面展示的美元、人民币或 TOKENS 数值。内部判断必须统一使用 quota 单位，所有乘法和换算使用 <code>common.Quota*Checked</code> 系列，保留饱和审计。</p>
+  </section>
+
+  <section>
+    <h2>范围与非目标</h2>
+    <div class="two-col">
+      <div>
+        <h3>本方案覆盖</h3>
+        <ul class="check">
+          <li>文本生成请求的严格输出预算。</li>
+          <li>钱包、订阅和访问 Token 的可用额度边界。</li>
+          <li>多请求并发条件预留与渠道重试复用。</li>
+          <li>Chat、Responses、Claude、Gemini 的统一输出上限。</li>
+          <li>钱包、订阅资金可用量和有限访问 Token 的联合边界。</li>
+        </ul>
+      </div>
+      <div>
+        <h3>不直接套用 max-token</h3>
+        <ul>
+          <li>Embeddings、Rerank：按输入 Token 预扣，没有生成上限。</li>
+          <li>图片：按 <code>n</code>、尺寸、质量等边界控制。</li>
+          <li>视频、音乐和异步任务：按时长、分辨率、次数全额预扣。</li>
+          <li>固定按次价格：作为完整单次费用参与保守阈值；不换算成每 Token 单价。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>术语和安全不变量</h2>
+    <table>
+      <thead><tr><th>术语</th><th>定义</th><th>是否写入上游</th></tr></thead>
+      <tbody>
+        <tr><td><code>protection_threshold</code></td><td>最贵可用模型输出 N Token 的 quota 成本乘安全系数。</td><td>否</td></tr>
+        <tr><td><code>available_quota</code></td><td>钱包/订阅可用额度与有限 Token 可用额度的较小值，并扣除未结算风险。</td><td>否</td></tr>
+        <tr><td><code>estimated_output_tokens</code></td><td>用于价格估算和预扣的预计输出量。</td><td>否</td></tr>
+        <tr><td><code>affordable_output_tokens</code></td><td>当前预算按本次模型输出单价能够承担的最大 Token。</td><td>否</td></tr>
+        <tr><td><code>effective_max_tokens</code></td><td>客户端、模型、管理员策略和可承担上限四者的最小值。</td><td><strong>是</strong></td></tr>
+        <tr><td><code>reservation</code></td><td>调用 Provider 前原子锁定的最大可消费额度。</td><td>否</td></tr>
+      </tbody>
+    </table>
+    <h3>必须始终成立</h3>
+    <ul class="check">
+      <li>保护区内，最坏请求费用不得大于成功预留的额度。</li>
+      <li>同一个请求的渠道重试只能复用一次预扣。</li>
+      <li>渠道重试复用同一 Reservation，不能再次预扣。</li>
+      <li>客户端断开只改变传输状态，不直接等于计费退款。</li>
+      <li>本地已发 Cancel 不等于上游已停止，也不等于 Usage 为零。</li>
+      <li>当前内存退款不是崩溃可恢复的持久 Reservation；后续状态机落地前不能宣称跨进程幂等。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>总体架构</h2>
+    <p class="note orange"><strong>图例：</strong>阈值决策、单表条件扣减、协议上限和结算是一阶段现状；价格快照、幂等预留记录、流式观察器、持久状态和取消对账均为后续目标。</p>
+    <div class="diagram"><img src="assets/balance-protection-architecture.svg" alt="余额保护架构区分当前阈值决策、完整余额预扣、单表条件扣减和协议限制，以及后续持久预留、流式取消和对账" style="width:100%;min-width:920px"></div>
+    <p class="caption">图 1：最后 1M Token 余额保护总体架构。</p>
+    <h3>如何读图</h3>
+    <ol>
+      <li>当前直接读取热配置和数据库事实；不可变价格快照是后续能力。</li>
+      <li>预算决策器产生进入/退出模式、有效上限、预留额度和审计原因。</li>
+      <li>当前 BillingSession 在内存中管理生命周期，钱包和有限 Token 分别条件扣减；持久化联合 Reservation 是后续目标。</li>
+      <li>协议层把同一个有效上限写入真实上游字段，预扣和上游硬限制不能使用两个不同值。</li>
+      <li>当前没有流中预算观察器；Usage 未知时保留严格预扣，主动取消与持久对账是后续目标。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>阈值算法：何时进入保护区</h2>
+    <h3>1. 解析当前实现使用的保守模型集合</h3>
+    <pre>threshold_model_candidates =
+  用户可用分组集合
+  → abilities 表中 enabled=true 的 distinct(group, model)</pre>
+    <p>第一阶段故意不按当前 Token 白名单缩小集合，避免换 Token 绕过；但也尚未 join 渠道 status、按请求路径或文本协议能力过滤，因此可能把无关 Ability 算入并保守拒绝。当前不缓存此集合；精确能力快照属于后续优化。</p>
+
+    <h3>2. 将价格归一到每 1M 输出 Token</h3>
+    <pre>effective_output_quota_per_token =
+  output_unit_price
+  × model_ratio
+  × completion_ratio
+  × group_ratio
+  × request-independent provider ratios
+
+threshold_tokens =
+  balance_protection_threshold_10k_tokens × 10,000
+
+protection_threshold =
+  max(effective_output_quota_per_token) × threshold_tokens
+  × safety_ratio</pre>
+    <p>免费模型输出价格为零。固定按次模型以完整单次费用参与候选，不换算为 1M 输出 Token。Tiered Expression 必须配置 USD/1M 保守上界；候选价格缺失会在阈值判断前 fail closed。</p>
+
+    <h3>3. 计算真实可用额度</h3>
+    <pre>funding_available =
+  wallet_available 或 subscription_available
+
+token_available =
+  TokenUnlimited ? +∞ : token.remain_quota
+
+available_quota =
+  min(funding_available, token_available)</pre>
+    <p>当前从数据库读取钱包、活跃订阅和有限 Token，已同步扣掉的预扣自然反映在余额中。尚无活动 Reservation 风险账本。</p>
+
+    <h3>4. 当前触发规则与后续滞回</h3>
+    <pre>当前进入：
+  available_quota ≤ protection_threshold + current_request_worst_quota
+
+当前退出：
+  每次请求重新计算；超过前瞻边界即不激活
+
+后续建议：
+  用 exit_ratio 构造跨请求滞回状态</pre>
+  </section>
+
+  <section>
+    <h2>请求主流程</h2>
+    <div class="diagram"><img src="assets/balance-protection-flow.svg" alt="请求通过阈值和单请求前瞻判断保护模式，严格模式计算输出上限、预扣完整有限余额、单次调用 Provider 并结算" style="width:100%;min-width:900px"></div>
+    <p class="caption">图 2：请求级余额保护决策。图中的流式 95% 取消、未结算风险账本和持久原子 Reservation 是后续目标；当前在严格模式预扣完整有限可用额度并只允许一次上游 attempt。</p>
+    <h3>流程使用说明</h3>
+    <ol>
+      <li><strong>估输入：</strong>在当前 <code>EstimateRequestToken</code> 之后运行，不改变鉴权、模型校验和敏感词检查顺序。</li>
+      <li><strong>做决策：</strong><code>ApplyBalanceProtection</code> 把有效上限、阈值、权威可用额度和最贵模型写入本次 <code>RelayInfo</code>，渠道重试不得重新放大。</li>
+      <li><strong>第一次写 DTO：</strong>在 <code>ModelPriceHelper</code> 前把有效上限写入解析后的 DTO，使定价和预扣看到同一个 max，并保留指针字段的缺失/显式值语义。</li>
+      <li><strong>算最坏费用：</strong>分别计算输入费用和 <code>effective max × CompletionRatio</code> 的最大输出费用，不能复用当前 <code>prompt + max</code> 的普通倍率公式。</li>
+      <li><strong>严格预留：</strong>当前预扣完整有限可用额度，钱包或有限 Token 条件更新竞争失败就返回 403；不自动重算。</li>
+      <li><strong>最终出站 Clamp：</strong>标准 OpenAI/Responses/Claude/Gemini 字段和已登记的常见 Provider 字段只会被压低。保护命中时 raw PassThrough 被关闭并由 DTO 重建，未知扩展字段可能丢失。</li>
+      <li><strong>结算：</strong>正常完成按最终 Usage 退还差额；已 dispatch 后错误或 Usage 缺失保留完整预扣并写管理员审计。持久对账尚未实现。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>请求级预算公式</h2>
+    <pre>spendable_quota =
+  available_quota
+  - estimated_input_quota
+  - fixed_request_quota
+  - tool_reserve_quota
+  - reasoning_and_cancel_buffer
+
+affordable_output_tokens =
+  floor(spendable_quota / request_output_quota_per_token)
+
+effective_max_tokens =
+  min(
+    client_max_tokens_or_infinity,
+    protection_zone_policy_max_tokens,
+    affordable_output_tokens
+  )</pre>
+    <p class="note orange">当前没有通用模型级 max-output 元数据。Claude 入口在客户端未传 max 时会额外取配置默认值；其他模型仍依赖站点保护区上限和 Provider 自身校验。</p>
+    <p>如果 <code>spendable_quota ≤ 0</code>，或者 <code>effective_max_tokens</code> 小于最低可用输出，直接返回额度不足。保护目标优先于“至少返回一点内容”，因此默认不自动放宽到 64 Token。</p>
+
+    <h3>单请求算例</h3>
+    <pre>权威可用额度                   10,000 quota
+输入和缓存写入预计费用          2,000 quota
+工具与取消安全缓冲              1,000 quota
+本次模型输出价格                   2 quota/token
+
+spendable_quota                 7,000 quota
+affordable_output_tokens        3,500 tokens
+客户端 max_tokens              8,000
+管理员上限                     4,096
+
+effective_max_tokens = min(8000, 4096, 3500)
+                     = 3,500</pre>
+    <p>上游收到 3500，预扣也按 3500 的最坏费用计算。客户端原值仅用于审计，不能继续影响上游转换。普通倍率公式必须拆成输入和输出两部分：</p>
+    <pre>input_quota =
+  prompt_tokens × model_ratio × group_ratio
+
+worst_output_quota =
+  effective_max_tokens × completion_ratio
+  × model_ratio × group_ratio
+
+reserved_quota =
+  input_quota + worst_output_quota
+  + cache/image/audio/tool/fixed/buffer</pre>
+
+    <h3>并发算例</h3>
+    <pre>余额 10,000；A、B 都初算需要预留 7,000
+
+A 条件 UPDATE 成功，余额变 3,000
+B 条件 UPDATE RowsAffected=0
+B 条件 UPDATE RowsAffected=0：
+  第一期直接返回 403，不重算、不调用 Provider</pre>
+  </section>
+
+  <section>
+    <h2>协议字段映射与适用边界</h2>
+    <table>
+      <thead><tr><th>入口</th><th>当前请求 DTO</th><th>有效上限写入</th><th>注意事项</th></tr></thead>
+      <tbody>
+        <tr><td>OpenAI Chat/Completions</td><td><code>GeneralOpenAIRequest</code></td><td>优先 <code>max_completion_tokens</code>，兼容 <code>max_tokens</code></td><td>必须明确两字段同时出现时的优先级；Adaptor 转换测试覆盖。</td></tr>
+        <tr><td>OpenAI Responses</td><td><code>OpenAIResponsesRequest</code></td><td><code>max_output_tokens</code></td><td>推理 Token 可能计入输出预算；当前 <code>background</code> 尚未完整支持。</td></tr>
+        <tr><td>Claude Messages</td><td><code>ClaudeRequest</code></td><td><code>max_tokens</code></td><td>最终 Clamp 会检查 <code>thinking.budget_tokens &lt; max_tokens</code>；预算冲突时在调用 Provider 前拒绝，不能让 Thinking Adapter 把上限重新抬高。</td></tr>
+        <tr><td>Gemini</td><td><code>GeminiChatRequest</code></td><td><code>generationConfig.maxOutputTokens</code></td><td>单请求与 <code>requests[]</code> batch 均逐项 Clamp；兼容 camelCase/snake_case 解析。</td></tr>
+        <tr><td>Responses Compact</td><td><code>OpenAIResponsesCompactionRequest</code></td><td><strong>未实现</strong></td><td>启用总开关后显式 fail closed，不允许静默绕过。</td></tr>
+        <tr><td>Realtime</td><td>WebSocket 客户端事件</td><td><strong>未实现</strong></td><td>启用总开关后握手流程返回不支持错误；逐 <code>response.create</code> 预算属于后续阶段。</td></tr>
+        <tr><td>Embedding/Rerank</td><td>各自 DTO</td><td>第一阶段不适用</td><td>保持原有输入计费、trust 和预扣路径；后续应增加“无输出上限但严格预扣”的模式。</td></tr>
+        <tr><td>图片/任务</td><td>ImageRequest / TaskAdaptor</td><td>不适用</td><td>沿用 <code>n</code>、时长、尺寸和全额预扣边界。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>当前 DTO 写入方式与后续 RelayKit 契约</h3>
+    <p>第一阶段为了保持 <code>relaykit/</code> 独立且不扩张公共接口，在根模块 <code>service/balance_protection.go</code> 对四种真实 DTO 做显式 type switch。这样代码路径直接、可测试，也不会让 RelayKit 依赖站点配置。若后续协议继续增加，可将相同能力下沉为以下可选接口：</p>
+    <pre>type OutputTokenLimitRequest interface {
+    RequestedMaxOutputTokens() (*uint, bool)
+    ApplyMaxOutputTokens(limit uint)
+}</pre>
+    <p>由支持文本生成的 RelayKit DTO 实现可选接口，Controller 在 Adaptor 转换前统一调用。不要把根模块配置导入 <code>relaykit/</code>；接口只表达 DTO 能力，预算策略仍留在根模块，保证 RelayKit 可独立构建。</p>
+    <p class="note">请求字段必须继续使用指针和 <code>omitempty</code>：字段缺失、显式 0 和显式正数不能在协议转换中被混成同一个状态。</p>
+    <h3>为什么必须做两次 Clamp</h3>
+    <p>第一次写入解析 DTO 是为了让 <code>GetTokenCountMeta</code> 和 <code>PriceData</code> 使用有效上限；第二次在最终出站 JSON 上只压低现有值，防止渠道 <code>param_override</code> 把 max 调大。保护命中后当前不会 patch 原始 BodyStorage，而是关闭 raw PassThrough 并重建标准 DTO。</p>
+    <pre>parsed DTO clamp
+  → PriceData / Reservation
+  → Adaptor Convert
+  → ParamOverride
+  → final outbound clamp
+  → Provider</pre>
+    <p>最终 Clamp 不得抬高客户端、Adaptor 或渠道已设置的更小上限。当前覆盖标准协议字段、Gemini batch、Baidu 风格 <code>max_output_tokens</code> 和 Nova 风格 <code>inferenceConfig.maxTokens</code>；完整 Provider 字段矩阵仍需 Adaptor 级契约。</p>
+  </section>
+
+  <section>
+    <h2>一期单表条件预扣与后续联合 Reservation</h2>
+    <h3>钱包条件扣减</h3>
+    <pre>UPDATE users
+SET quota = quota - :reserve
+WHERE id = :user_id
+  AND quota &gt;= :reserve;</pre>
+    <h3>有限 Token 条件扣减</h3>
+    <pre>UPDATE tokens
+SET remain_quota = remain_quota - :reserve,
+    used_quota = used_quota + :reserve,
+    accessed_time = :now
+WHERE id = :token_id
+  AND remain_quota &gt;= :reserve;</pre>
+    <p>两条语义在 SQLite、MySQL 和 PostgreSQL 均可通过 GORM 条件更新实现。保护路径必须同步写权威数据库并检查 <code>RowsAffected==1</code>，即使 <code>BatchUpdateEnabled=true</code> 也不能延迟批量扣减；Redis 只做失效/同步缓存，不能决定严格可用余额。</p>
+    <p>第一阶段的两次条件更新仍是顺序执行：Token 成功而钱包/订阅失败时由 <code>BillingSession</code> 进程内补偿。这能阻止单表余额变负，但不能覆盖两次更新之间进程崩溃。钱包和 Token 在同一主数据库时，第二阶段应在一个短事务中完成并同时创建/更新 Reservation；订阅路径则需统一事务或持久 Saga。</p>
+
+    <h3>建议新增持久化记录</h3>
+    <table>
+      <thead><tr><th>字段</th><th>用途</th><th>约束</th></tr></thead>
+      <tbody>
+        <tr><td><code>request_id</code></td><td>预留、取消、结算和退款的幂等键</td><td>唯一索引</td></tr>
+        <tr><td><code>user_id/token_id</code></td><td>额度归属</td><td>普通索引</td></tr>
+        <tr><td><code>funding_source/source_id</code></td><td>wallet 或 subscription</td><td>不可在运行中改变</td></tr>
+        <tr><td><code>reserved_quota/actual_quota</code></td><td>最大预留与最终消费</td><td>非负、使用 int32 安全换算</td></tr>
+        <tr><td><code>state/version</code></td><td>状态机 CAS</td><td><code>request_id + state + version</code> 条件更新</td></tr>
+        <tr><td><code>price_snapshot</code></td><td>模型、分组、倍率和配置版本</td><td>结算复用，不追随中途热更新</td></tr>
+        <tr><td><code>provider_request_id</code></td><td>取消和对账</td><td>可空，拿到后持久化</td></tr>
+        <tr><td><code>lease_expires_at/last_error</code></td><td>崩溃恢复和人工处理</td><td>清扫任务使用</td></tr>
+      </tbody>
+    </table>
+    <p class="note red">当前 <code>BillingSession</code> 的 <code>settled/refunded</code> 等标志主要在内存，不能单独承担进程崩溃恢复；退款必须把“额度变化”和“Reservation 终态”放在同一事务中，避免重复加钱。</p>
+  </section>
+
+  <section>
+    <h2>后续设计：持久计费状态机</h2>
+    <div class="diagram"><img src="assets/balance-protection-state-machine.svg" alt="预留记录从 CREATED 到 RESERVED、RUNNING，正常完成或取消后进入对账，最终 SETTLED、RELEASED 或 MANUAL_REVIEW" style="width:100%;min-width:920px"></div>
+    <p class="caption">图 3：第二阶段目标状态机，当前数据库中尚无该 Reservation 实体。传输连接断开不能直接跳到 RELEASED。</p>
+    <h3>状态机使用说明</h3>
+    <p class="note orange">当前运行时只有 <code>BillingSession</code> 的内存状态（预扣、结算、退款）和数据库额度变更。下面的状态名称用于指导后续实现和排障建模，不是当前可查询的数据库状态。</p>
+    <table>
+      <thead><tr><th>迁移</th><th>触发事件</th><th>持久化动作</th><th>失败恢复</th></tr></thead>
+      <tbody>
+        <tr><td>CREATED → RESERVED</td><td>钱包/Token/订阅原子预留成功</td><td>写 reserved quota、价格快照</td><td>任一步失败同事务回滚</td></tr>
+        <tr><td>RESERVED → RUNNING</td><td>Provider 接受或已取得响应头/请求 ID</td><td>记录 attempt 和 provider request ID</td><td>重试复用同一 Reservation</td></tr>
+        <tr><td>RESERVED → RELEASED</td><td>能够证明请求未被上游接受</td><td>同事务退还预留并写终态</td><td>重复释放 RowsAffected=0</td></tr>
+        <tr><td>RUNNING → COMPLETED</td><td>收到正常终态 Usage</td><td>保存原始 Usage</td><td>进入对账重试</td></tr>
+        <tr><td>RUNNING → CANCELLING</td><td>客户端断开、预算熔断或超时</td><td>记录取消原因和时间</td><td>后台重试取消/查询</td></tr>
+        <tr><td>CANCELLING → CANCELLED</td><td>上游确认 cancelled</td><td>保存终态与 Usage</td><td>Usage 缺失仍不能退款</td></tr>
+        <tr><td>COMPLETED/CANCELLED → RECONCILING</td><td>计算实际费用</td><td>冻结 actual quota</td><td>使用 price snapshot 重放</td></tr>
+        <tr><td>RECONCILING → SETTLED</td><td>补扣/退款事务成功</td><td>额度变化和状态一起提交</td><td>幂等重试</td></tr>
+        <tr><td>RECONCILING → MANUAL_REVIEW</td><td>Usage 长期缺失或补偿持续失败</td><td>保留额度和管理员审计</td><td>人工确认后再结算</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>后续设计：SSE、Background、Realtime 取消机制</h2>
+    <table>
+      <thead><tr><th>类型</th><th>预算触发动作</th><th>何时认为终止</th><th>Usage 缺失策略</th></tr></thead>
+      <tbody>
+        <tr><td>同步 SSE</td><td>取消上游 request Context，并关闭 <code>resp.Body</code></td><td>读取终止或连接确认关闭</td><td>进入 <code>USAGE_UNKNOWN/RECONCILING</code>，不能仅按可见文本退款</td></tr>
+        <tr><td>Responses Background</td><td>调用 Provider Cancel API</td><td>轮询到 cancelled/completed 终态</td><td>保持预留；超时进入人工/后台对账</td></tr>
+        <tr><td>Realtime</td><td>发送 <code>response.cancel</code>，有界等待 <code>response.done</code></td><td><code>response.done(status=cancelled)</code></td><td>等待超时则关闭 WS 并保留待对账额度</td></tr>
+        <tr><td>异步任务</td><td>仅在 Provider 支持时调用任务取消</td><td>轮询到明确终态</td><td>客户端断开不释放任务预扣</td></tr>
+      </tbody>
+    </table>
+
+    <h3>统一上游 Context</h3>
+    <pre>upstreamCtx, cancelUpstream :=
+    context.WithCancel(c.Request.Context())
+defer cancelUpstream()
+
+req, err := http.NewRequestWithContext(
+    upstreamCtx,
+    c.Request.Method,
+    fullRequestURL,
+    requestBody,
+)</pre>
+    <p>统一改造 <code>DoApiRequest</code>、<code>DoFormRequest</code> 和文本任务的请求创建路径，覆盖“客户端在响应头返回前断开”的窗口。每次渠道 attempt 可以有独立 child Context，但共享同一 Reservation。</p>
+
+    <h3>后续设计：流式预算观察器</h3>
+    <pre>85% reservation：记录 warning、指标和审计
+95% reservation：请求取消，进入 CANCELLING
+100% reservation：不应依赖此点；上游硬 max 应先阻止到达</pre>
+    <p>可见 SSE Token 无法完整代表隐藏 reasoning、缓存、工具和网络缓冲费用。因此 95% 是软防线，真正的主边界是“有效上限 + 最坏费用预留”。</p>
+    <p class="note orange">当前 Responses DTO 注释为“在后台运行推理，暂时还不支持依赖的接口”。在显式 Cancel、终态查询和持久化 provider response ID 完成前，保护区内应拒绝 <code>background=true</code>，不能声称关闭 SSE 就能保护余额。</p>
+  </section>
+
+  <section>
+    <h2>已实现配置</h2>
+    <p>以下字段已注册到 <code>setting/operation_setting/quota_setting.go</code>，数据库 Option Key 由 <code>quota_setting.</code> 加 JSON 字段名组成，可通过统一配置机制热加载。数值和 JSON Map 在 <code>model.validateOptionValue</code> 写库前校验。</p>
+    <table>
+      <thead><tr><th>代码字段 / Option Key</th><th>默认值</th><th>生效阶段</th><th>热加载</th><th>风险与说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>BalanceProtectionEnabled</code><br><code>quota_setting.balance_protection_enabled</code></td><td><code>false</code></td><td>Billing decision</td><td>是</td><td>总开关；建议先观察定价完整性再开启。</td></tr>
+        <tr><td><code>BalanceProtectionThreshold10KTokens</code><br><code>quota_setting.balance_protection_threshold_10k_tokens</code></td><td><code>100</code>（万 Token）</td><td>Threshold</td><td>是</td><td>运行时乘以 <code>10,000</code>；默认对应最后 100 万个“最贵模型输出 Token”的风险区，不是单请求 max。</td></tr>
+        <tr><td><code>BalanceProtectionSafetyRatio</code><br><code>quota_setting.balance_protection_safety_ratio</code></td><td><code>1.10</code></td><td>Threshold / budget</td><td>是</td><td>有限数且 ≥ 1；同时扩大进入阈值并收紧可承担输出。</td></tr>
+        <tr><td><code>BalanceProtectionMinimumOutput</code><br><code>quota_setting.balance_protection_minimum_output_tokens</code></td><td><code>64</code></td><td>Decision</td><td>是</td><td>余额反算上限低于此值时返回 403；客户端主动请求更小值不受此规则拒绝。</td></tr>
+        <tr><td><code>BalanceProtectionMaximumOutput</code><br><code>quota_setting.balance_protection_maximum_output_tokens</code></td><td><code>1000000</code></td><td>Decision</td><td>是</td><td>仅在保护激活时生效的站点上限，取值 1–1,000,000；后续应再与模型元数据取最小值。</td></tr>
+        <tr><td><code>BalanceProtectionTieredPriceCeilings</code><br><code>quota_setting.balance_protection_tiered_price_ceilings</code></td><td><code>{}</code></td><td>Threshold / tiered</td><td>是</td><td>并发安全 Map，值为模型保守输出价 USD/1M；任何用户可用 tiered_expr 模型缺失上界时 fail closed。</td></tr>
+      </tbody>
+    </table>
+    <p class="note orange"><strong>启用前置条件：</strong><code>BatchUpdateEnabled</code> 必须为 false。保护逻辑发现批量延迟扣减开启时会在调用 Provider 前 fail closed，因为此模式下数据库余额不是实时权威值。</p>
+    <h3>后续设计参数（尚未实现）</h3>
+    <p><code>ExitRatio</code>、<code>StreamWarnRatio</code>、<code>StreamCancelRatio</code>、<code>ReasoningReserveRatio</code>、<code>ReconcileTimeoutSeconds</code> 和持久 Reservation 配置仍属于第二阶段，不可写入 Option 并期待生效。</p>
+  </section>
+
+  <section>
+    <h2>代码落点与实现状态</h2>
+    <table>
+      <thead><tr><th>模块</th><th>建议改动</th><th>关键约束</th></tr></thead>
+      <tbody>
+        <tr><td><code>setting/operation_setting/quota_setting.go</code></td><td>已实现 6 个保护配置</td><td>默认关闭，热更新值写库前验证。</td></tr>
+        <tr><td><code>service/balance_protection.go</code></td><td>已实现模型集合、最贵阈值、资金可用量、请求预算和 DTO 写入</td><td>无缓存，以保护区安全优先。</td></tr>
+        <tr><td><code>controller/relay.go</code></td><td>已在输入估算后、定价前调用保护决策</td><td>严格区预扣完整有限余额；dispatch 后禁止渠道重试。</td></tr>
+        <tr><td><code>relay/common/balance_protection.go</code> 与协议 Handler</td><td>已实现 ParamOverride 后最终 Clamp；保护区关闭原始 Body 透传</td><td>渠道配置不能提高决策上限。</td></tr>
+        <tr><td><code>relay/helper/price.go</code></td><td>已拆分输入/输出预扣并应用 CompletionRatio</td><td>实际结算公式保持不变。</td></tr>
+        <tr><td><code>service/billing_session.go</code></td><td>已在保护区关闭 trust，并调用严格钱包/Token 扣减</td><td>持久 Reservation 尚未实现。</td></tr>
+        <tr><td><code>model/user.go</code></td><td>已实现 <code>DecreaseUserQuotaIfEnough</code></td><td>条件更新、同步数据库、检查 RowsAffected。</td></tr>
+        <tr><td><code>model/token.go</code></td><td>已实现 <code>DecreaseTokenQuotaIfEnough</code></td><td>有限 Token 条件扣减，缓存随后同步。</td></tr>
+        <tr><td><code>relay/channel/api_request.go</code></td><td><strong>Future：</strong>请求绑定可取消 Context</td><td>响应头前断开也能传播。</td></tr>
+        <tr><td><code>relay/helper/stream_scanner.go</code></td><td><strong>Future：</strong>流式预算观察与取消原因</td><td>不把可见 Token 当最终 Usage。</td></tr>
+        <tr><td><code>service/reconcile_*.go</code></td><td><strong>Future：</strong>终态查询、超时清扫和幂等补偿</td><td>多实例 CAS 抢占，失败可人工处理。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>错误、响应和可观察性</h2>
+    <h3>当前错误语义</h3>
+    <table>
+      <thead><tr><th>场景</th><th>当前行为</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>余额不足以覆盖输入或最低输出</td><td>HTTP 403，<code>ErrorCodeInsufficientUserQuota</code></td><td>不是 429；底层消息说明不足原因。</td></tr>
+        <tr><td>条件预扣竞争失败</td><td>直接返回 403，不重算</td><td>不会调用 Provider。</td></tr>
+        <tr><td>Realtime / Responses Compact</td><td>总开关启用时返回“不支持该 RelayFormat”</td><td>防止未覆盖协议静默绕过。</td></tr>
+        <tr><td>已 dispatch 后错误或 Usage 缺失</td><td>保留完整严格预扣</td><td>尚无后台对账。</td></tr>
+      </tbody>
+    </table>
+
+    <h3>当前审计字段</h3>
+    <pre>other.admin_info.balance_protection:
+  threshold_quota
+  available_quota
+  most_expensive_model
+  effective_max_tokens
+  usage_unknown</pre>
+    <p>普通用户日志会剥离管理员信息。当前没有有效 max 响应头，也没有价格版本、取消原因或对账状态字段。</p>
+
+    <h3>后续建议指标（尚未实现）</h3>
+    <ul>
+      <li><code>balance_protection_decisions_total{mode,reason,model}</code></li>
+      <li><code>balance_protection_clamped_total{protocol,model}</code></li>
+      <li><code>billing_reservation_conflicts_total{source}</code></li>
+      <li><code>billing_reconciliation_pending</code></li>
+      <li><code>stream_budget_cancellations_total{protocol}</code></li>
+      <li><code>quota_overdraft_amount</code>：目标是保护区流量长期为零。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>实施状态与后续阶段</h2>
+    <table>
+      <thead><tr><th>阶段</th><th>交付</th><th>是否改变客户端行为</th><th>退出条件</th></tr></thead>
+      <tbody>
+        <tr><td>已实现基础一期</td><td>前瞻阈值、标准字段 Clamp、完整有限余额预扣、单表条件扣减、禁 trust/重试、未知 Usage 保留</td><td>可能截短输出或并发 403</td><td>总开关默认关闭，先完成价格灰度审计</td></tr>
+        <tr><td>Future 1：协议矩阵</td><td>Adaptor 声明真实输出字段，显式 Background 拒绝，模型级 max 元数据</td><td>减少 Provider 兼容错误</td><td>全部启用渠道转换测试通过</td></tr>
+        <tr><td>Future 2：持久 Reservation</td><td>跨资金源事务/Saga、幂等退款、崩溃恢复</td><td>账务恢复更可靠</td><td>三数据库故障注入通过</td></tr>
+        <tr><td>Future 3：流式与异步</td><td>SSE 止损、Background/Realtime Cancel、终态对账</td><td>可能提前终止</td><td>取消尾部和待对账量可控</td></tr>
+      </tbody>
+    </table>
+    <p>当前总开关默认 false，可立即回退旧行为；目前尚无 Reservation 表或后台对账任务需要迁移。</p>
+  </section>
+
+  <section>
+    <h2>当前回归与后续验收矩阵</h2>
+    <ul class="check">
+      <li><strong>当前已测：</strong>配置边界、四类 DTO、Gemini batch、最终 JSON 只降不升、Claude thinking 冲突、Provider 嵌套字段、CompletionRatio 预扣、SQLite 条件扣减和主决策算例。</li>
+      <li><strong>当前行为：</strong><code>BatchUpdateEnabled=true</code> 时保护路径 fail closed，不调用 Provider。</li>
+      <li><strong>仍需环境验收：</strong>MySQL/PostgreSQL 多连接竞争、Token 成功后 funding 失败补偿、wallet_first 并发回退。</li>
+      <li><strong>Future：</strong>request_id 幂等、崩溃注入、持久退款、SSE 取消、Background/Realtime 终态对账。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>常见误区</h2>
+    <table>
+      <thead><tr><th>误解</th><th>正确理解</th></tr></thead>
+      <tbody>
+        <tr><td>最后 1M 等于每个请求可以输出 1M</td><td>它只决定何时进入严格保护。</td></tr>
+        <tr><td>进入后所有模型都按最贵模型限额</td><td>最贵模型决定触发，本次模型决定 affordable output。</td></tr>
+        <tr><td>预扣估算值就是上游 max</td><td>只有明确写入 DTO 的 effective max 才是硬限制。</td></tr>
+        <tr><td>动态 max 足以解决并发击穿</td><td>当前严格区还会预扣完整有限余额并做单表条件扣减；跨资金源原子性仍需持久 Reservation。</td></tr>
+        <tr><td>关闭 SSE 后立即不再收费</td><td>取消有传播尾部，已产生 Usage 仍结算；Background 还会继续运行。</td></tr>
+        <tr><td>可见输出 Token 等于实际计费输出</td><td>推理、工具、缓存和未送达数据可能造成差异。</td></tr>
+        <tr><td>余额不足应该返回 429</td><td>429 是频率限制；余额保护建议返回 403 和明确错误码。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>本章自检问题</h2>
+    <div class="two-col">
+      <div>
+        <h3>普通开发者</h3>
+        <ul>
+          <li>1M 风险阈值和单请求输出上限有什么区别？</li>
+          <li>为什么进入保护区后可能修改客户端的 max？</li>
+          <li>什么情况下直接拒绝而不是 clamp？</li>
+          <li>为什么取消后仍可能产生费用？</li>
+        </ul>
+      </div>
+      <div>
+        <h3>维护者</h3>
+        <ul>
+          <li>十个并发请求是否只能有可支付者预留成功？</li>
+          <li>价格中途热更新时，结算使用哪个版本？</li>
+          <li>渠道重试是否复用同一 Reservation？</li>
+          <li>进程在 RUNNING/CANCELLING 崩溃后如何恢复？</li>
+          <li>无最终 Usage 时如何保守结算？</li>
+          <li>三个数据库的条件更新和退款幂等是否一致？</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <div class="next">
+    <a href="15-openai-claude-code-research.html">← OpenAI / Claude 机制调研</a>
+    <a href="10-troubleshooting.html">排障手册 →</a>
+  </div>
+  <footer>实施说明：基础一期代码事实 + 后续可靠性设计 · 总开关默认关闭</footer>
+</main>
+<script src="assets/gateway-nav.js"></script>
+</body>
+</html>

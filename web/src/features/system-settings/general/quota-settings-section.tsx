@@ -49,6 +49,10 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  BALANCE_PROTECTION_THRESHOLD_MAX_10K_TOKENS,
+  balanceProtectionThreshold10KTokensSchema,
+} from './quota-settings-schema'
 
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
@@ -61,6 +65,9 @@ const quotaSchema = z.object({
   }),
   quota_setting: z.object({
     enable_free_model_pre_consume: z.boolean(),
+    balance_protection_enabled: z.boolean(),
+    balance_protection_threshold_10k_tokens:
+      balanceProtectionThreshold10KTokensSchema,
   }),
 })
 
@@ -231,6 +238,61 @@ export function QuotaSettingsSection({
                     {t('Quota given to invited users ({{formattedQuota}})', {
                       formattedQuota: formatQuotaInputValue(field.value),
                     })}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <SettingsFormGridItem span='full'>
+              <FormField
+                control={form.control}
+                name='quota_setting.balance_protection_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Balance Protection')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Limit output before the remaining quota can no longer cover the configured risk window.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </SettingsFormGridItem>
+
+            <FormField
+              control={form.control}
+              name='quota_setting.balance_protection_threshold_10k_tokens'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Balance Protection Threshold')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={BALANCE_PROTECTION_THRESHOLD_MAX_10K_TOKENS}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Unit: 10,000 tokens. Default 100 equals 1,000,000 tokens.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

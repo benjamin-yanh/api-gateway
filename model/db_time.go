@@ -8,9 +8,9 @@ func GetDBTimestamp() int64 {
 	var ts int64
 	var err error
 	switch {
-	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+	case common.UsingPostgreSQL:
 		err = DB.Raw("SELECT EXTRACT(EPOCH FROM NOW())::bigint").Scan(&ts).Error
-	case common.UsingMainDatabase(common.DatabaseTypeSQLite):
+	case common.UsingSQLite:
 		err = DB.Raw("SELECT strftime('%s','now')").Scan(&ts).Error
 	default:
 		err = DB.Raw("SELECT UNIX_TIMESTAMP()").Scan(&ts).Error

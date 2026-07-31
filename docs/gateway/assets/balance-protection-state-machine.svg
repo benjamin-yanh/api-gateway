@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="700" viewBox="0 0 1260 700" role="img" aria-label="后续持久计费预留状态机，包含预留、运行、取消、对账、结算、释放和人工复核">
+  <title>FUTURE · 持久 Reservation 状态机</title>
+  <desc>这是后续目标而非当前数据库状态。迁移使用 request id 加期望状态和版本做 CAS。</desc>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0 0 8 3 0 6z" fill="#496d99"/></marker>
+    <style>
+      .node{fill:#fbf8ff;stroke:#9b72df;stroke-width:2;stroke-dasharray:7 5}.terminal{fill:#e6f7f0;stroke:#2c9b78;stroke-width:2}
+      .review{fill:#fff5e7;stroke:#e09a3e;stroke-width:2}.line{stroke:#496d99;stroke-width:2;fill:none;marker-end:url(#a)}
+      .title{font:700 22px sans-serif;fill:#182230}.text{font:700 14px sans-serif;fill:#182230}.small{font:12px sans-serif;fill:#5b6b7f}
+    </style>
+  </defs>
+  <text class="title" x="40" y="38">FUTURE · 持久 Reservation 状态机（尚未实现）</text>
+  <rect class="node" x="40" y="100" width="160" height="70" rx="12"/><text class="text" x="120" y="141" text-anchor="middle">CREATED</text>
+  <rect class="node" x="260" y="100" width="160" height="70" rx="12"/><text class="text" x="340" y="141" text-anchor="middle">RESERVED</text>
+  <rect class="node" x="500" y="100" width="160" height="70" rx="12"/><text class="text" x="580" y="141" text-anchor="middle">RUNNING</text>
+  <rect class="node" x="760" y="70" width="170" height="70" rx="12"/><text class="text" x="845" y="111" text-anchor="middle">COMPLETED</text>
+  <rect class="node" x="760" y="200" width="170" height="70" rx="12"/><text class="text" x="845" y="241" text-anchor="middle">CANCELLING</text>
+  <rect class="node" x="1000" y="200" width="170" height="70" rx="12"/><text class="text" x="1085" y="241" text-anchor="middle">CANCELLED</text>
+  <rect class="node" x="760" y="360" width="190" height="70" rx="12"/><text class="text" x="855" y="401" text-anchor="middle">RECONCILING</text>
+  <rect class="terminal" x="1010" y="360" width="160" height="70" rx="12"/><text class="text" x="1090" y="401" text-anchor="middle">SETTLED</text>
+  <rect class="review" x="760" y="520" width="190" height="70" rx="12"/><text class="text" x="855" y="561" text-anchor="middle">MANUAL_REVIEW</text>
+  <rect class="terminal" x="270" y="360" width="160" height="70" rx="12"/><text class="text" x="350" y="401" text-anchor="middle">RELEASED</text>
+
+  <path class="line" d="M200 135h60"/><text class="small" x="215" y="126">条件预留</text>
+  <path class="line" d="M420 135h80"/><text class="small" x="435" y="126">Provider 接受</text>
+  <path class="line" d="M660 125h100"/><text class="small" x="680" y="116">正常完成</text>
+  <path class="line" d="M580 170v65h180"/><text class="small" x="600" y="222">取消 / 断连 / 超时</text>
+  <path class="line" d="M930 235h70"/><text class="small" x="943" y="226">确认取消</text>
+  <path class="line" d="M845 140v220"/><text class="small" x="855" y="320">保存 Usage</text>
+  <path class="line" d="M1085 270v90"/><text class="small" x="1095" y="320">终态 Usage</text>
+  <path class="line" d="M950 395h60"/><text class="small" x="958" y="386">CAS 结算</text>
+  <path class="line" d="M855 430v90"/><text class="small" x="865" y="485">Usage 缺失 / 补偿失败</text>
+  <path class="line" d="M340 170v190"/><text class="small" x="350" y="280">能够证明上游未接受</text>
+  <path class="line" d="M930 105c130 0 155 35 155 95"/><text class="small" x="975" y="90">取消与自然完成竞态</text>
+
+  <text class="small" x="40" y="650">迁移约束：request_id 唯一只防重复创建；每次状态迁移必须使用 request_id + expected_state + version 的 CAS。SETTLED / RELEASED 为不可逆终态。</text>
+</svg>

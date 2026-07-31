@@ -1,4 +1,14 @@
 (function(){
+  if(!document.querySelector('nav a[href="16-balance-protection-max-token.html"]')){
+    const billingLink=document.querySelector('nav a[href="05-billing-usage.html"]');
+    if(billingLink){
+      const protectionLink=document.createElement('a');
+      protectionLink.href='16-balance-protection-max-token.html';
+      protectionLink.dataset.nav='balance-protection';
+      protectionLink.textContent='余额保护';
+      billingLink.insertAdjacentElement('afterend',protectionLink);
+    }
+  }
   const current=document.body&&document.body.dataset.current;
   document.querySelectorAll('[data-nav]').forEach(function(a){
     if(a.dataset.nav===current){a.setAttribute('aria-current','page');a.classList.add('active');}

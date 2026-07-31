@@ -69,6 +69,10 @@ const BILLING_SECTIONS = [
           quota_setting: {
             enable_free_model_pre_consume:
               settings['quota_setting.enable_free_model_pre_consume'],
+            balance_protection_enabled:
+              settings['quota_setting.balance_protection_enabled'],
+            balance_protection_threshold_10k_tokens:
+              settings['quota_setting.balance_protection_threshold_10k_tokens'],
           },
         }}
         complianceConfirmed={

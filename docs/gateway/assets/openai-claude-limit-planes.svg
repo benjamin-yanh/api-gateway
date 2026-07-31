@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="650" viewBox="0 0 1160 650" role="img" aria-label="OpenAI、Claude 与 new-api 的限流和计费分层对比图">
+  <title>OpenAI、Claude 与 new-api 的限流和计费分层</title>
+  <desc>图中将模型输出上限、吞吐限流、余额或支出控制、并发预留分为四个相互独立的控制平面，并对比 OpenAI、Claude 公开机制以及 new-api 建议实现。</desc>
+  <defs>
+    <linearGradient id="head" x1="0" x2="1">
+      <stop offset="0" stop-color="#102a56"/>
+      <stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#20344f" flood-opacity=".12"/>
+    </filter>
+    <style>
+      .title{font:700 27px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#fff}
+      .sub{font:400 14px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#dbeafe}
+      .col{font:700 18px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#19365f}
+      .row{font:700 15px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#243b5a}
+      .txt{font:400 13px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#43566f}
+      .small{font:400 12px -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;fill:#60758e}
+    </style>
+  </defs>
+  <rect width="1160" height="650" rx="22" fill="#f7faff"/>
+  <rect x="0" y="0" width="1160" height="104" rx="22" fill="url(#head)"/>
+  <rect x="0" y="82" width="1160" height="22" fill="url(#head)"/>
+  <text x="38" y="45" class="title">限流、计费与输出上限不是同一件事</text>
+  <text x="38" y="75" class="sub">公开资料显示两家都把吞吐控制与费用控制分开；余额反算 max_tokens 并不是公开默认机制。</text>
+  <g filter="url(#shadow)">
+    <rect x="28" y="126" width="250" height="64" rx="12" fill="#eef4ff"/>
+    <rect x="294" y="126" width="260" height="64" rx="12" fill="#eef4ff"/>
+    <rect x="570" y="126" width="260" height="64" rx="12" fill="#f1edff"/>
+    <rect x="846" y="126" width="286" height="64" rx="12" fill="#e9f8f2"/>
+  </g>
+  <text x="52" y="153" class="col">控制平面</text>
+  <text x="318" y="153" class="col">OpenAI API</text>
+  <text x="594" y="153" class="col">Claude API / Code</text>
+  <text x="870" y="153" class="col">new-api 建议</text>
+  <text x="52" y="176" class="small">四者需要分别建模</text>
+  <text x="318" y="176" class="small">公开文档行为</text>
+  <text x="594" y="176" class="small">公开文档行为</text>
+  <text x="870" y="176" class="small">兼顾硬安全与用户体验</text>
+  <g>
+    <rect x="28" y="208" width="250" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="294" y="208" width="260" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="570" y="208" width="260" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="846" y="208" width="286" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <text x="48" y="237" class="row">① 模型输出上限</text>
+    <text x="48" y="263" class="txt">上下文窗口、max_tokens</text>
+    <text x="314" y="237" class="txt">请求参数与模型能力约束</text>
+    <text x="314" y="263" class="txt">不等同于最终收费</text>
+    <text x="590" y="237" class="txt">max_tokens 控制响应长度</text>
+    <text x="590" y="263" class="txt">Claude Code 另有输出上限配置</text>
+    <text x="866" y="237" class="txt">保留客户端语义；校验模型上限</text>
+    <text x="866" y="263" class="txt">余额不足时拒绝或显式降档</text>
+  </g>
+  <g>
+    <rect x="28" y="304" width="250" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="294" y="304" width="260" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="570" y="304" width="260" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="846" y="304" width="286" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <text x="48" y="333" class="row">② 吞吐限流</text>
+    <text x="48" y="359" class="txt">RPM / TPM / ITPM / OTPM</text>
+    <text x="314" y="333" class="txt">RPM、TPM 等组织/项目级限制</text>
+    <text x="314" y="359" class="txt">TPM 取 max_tokens 与输入估算较大值</text>
+    <text x="314" y="383" class="txt">响应头返回剩余额度与重置时间</text>
+    <text x="590" y="333" class="txt">Token Bucket；ITPM 与 OTPM 分离</text>
+    <text x="590" y="359" class="txt">ITPM 先估后校；OTPM 实时计实际输出</text>
+    <text x="590" y="383" class="txt">max_tokens 不占用 OTPM</text>
+    <text x="866" y="333" class="txt">独立 RPM / 输入 / 输出桶</text>
+    <text x="866" y="359" class="txt">暴露 limit、remaining、reset</text>
+    <text x="866" y="383" class="txt">限流状态不承担余额一致性</text>
+  </g>
+  <g>
+    <rect x="28" y="416" width="250" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="294" y="416" width="260" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="570" y="416" width="260" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="846" y="416" width="286" height="82" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <text x="48" y="445" class="row">③ 余额 / 支出控制</text>
+    <text x="48" y="471" class="txt">实际 Usage、预付费、月度上限</text>
+    <text x="314" y="445" class="txt">按实际 API Usage 扣 Credits</text>
+    <text x="314" y="471" class="txt">公开说明允许延迟截断与负余额</text>
+    <text x="590" y="445" class="txt">月度 Spend Limit 与速率分开</text>
+    <text x="590" y="471" class="txt">Claude Code 可设 Workspace 上限</text>
+    <text x="866" y="445" class="txt">原子预留 + 实际结算 + 幂等退款</text>
+    <text x="866" y="471" class="txt">明确硬上限、软上限两种策略</text>
+  </g>
+  <g>
+    <rect x="28" y="512" width="250" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="294" y="512" width="260" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="570" y="512" width="260" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <rect x="846" y="512" width="286" height="98" rx="10" fill="#fff" stroke="#d9e2ec"/>
+    <text x="48" y="541" class="row">④ 并发预留</text>
+    <text x="48" y="567" class="txt">防止多个请求同时透支</text>
+    <text x="314" y="541" class="txt">内部实现未公开</text>
+    <text x="314" y="567" class="txt">不能从限流文档推断账务锁策略</text>
+    <text x="590" y="541" class="txt">内部实现未公开</text>
+    <text x="590" y="567" class="txt">Workspace 限制不等同单请求预留</text>
+    <text x="866" y="541" class="txt">available = balance - reserved</text>
+    <text x="866" y="567" class="txt">数据库条件更新 + Reservation Ledger</text>
+    <text x="866" y="591" class="txt">TTL、request_id、失败补偿</text>
+  </g>
+</svg>

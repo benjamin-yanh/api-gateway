@@ -64,6 +64,31 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
 }
 
+func TestModelPriceHelperPreConsumesCompletionAtCompletionRatio(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalModelRatios := ratio_setting.ModelRatio2JSONString()
+	originalCompletionRatios := ratio_setting.CompletionRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatios))
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(originalCompletionRatios))
+	})
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"balance-price-test":2}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"balance-price-test":3}`))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "balance-price-test",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	promptTokens := common.PreConsumedQuota + 100
+	priceData, err := ModelPriceHelper(ctx, info, promptTokens, &types.TokenCountMeta{MaxTokens: 100})
+	require.NoError(t, err)
+	require.Equal(t, promptTokens*2+100*2*3, priceData.QuotaToPreConsume)
+}
+
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

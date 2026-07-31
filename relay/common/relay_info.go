@@ -117,6 +117,19 @@ type RelayInfo struct {
 	SendResponseCount      int
 	ReceivedResponseCount  int
 	FinalPreConsumedQuota  int // 最终预消耗的配额
+	// BalanceProtectionActive indicates that this request entered the final
+	// balance protection zone. EffectiveMaxOutputTokens is immutable across
+	// channel retries and must be enforced again after parameter overrides.
+	BalanceProtectionActive             bool
+	EffectiveMaxOutputTokens            uint
+	BalanceProtectionThresholdQuota     int
+	BalanceProtectionAvailableQuota     int
+	BalanceProtectionMostExpensiveModel string
+	// UpstreamRequestDispatched is set immediately before invoking an adaptor's
+	// DoRequest. In protection mode an unknown outcome must not be retried or
+	// refunded as if the provider definitely did no work.
+	UpstreamRequestDispatched     bool
+	BalanceProtectionUsageUnknown bool
 	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
 	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
 	// 必须在提交前锁定全额。

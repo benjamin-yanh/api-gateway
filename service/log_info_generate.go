@@ -107,6 +107,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	appendBalanceProtectionAdminInfo(relayInfo, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
@@ -116,6 +117,19 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendBalanceProtectionAdminInfo(relayInfo *relaycommon.RelayInfo, adminInfo map[string]interface{}) {
+	if relayInfo == nil || adminInfo == nil || !relayInfo.BalanceProtectionActive {
+		return
+	}
+	adminInfo["balance_protection"] = map[string]interface{}{
+		"available_quota":      relayInfo.BalanceProtectionAvailableQuota,
+		"threshold_quota":      relayInfo.BalanceProtectionThresholdQuota,
+		"effective_max_tokens": relayInfo.EffectiveMaxOutputTokens,
+		"most_expensive_model": relayInfo.BalanceProtectionMostExpensiveModel,
+		"usage_unknown":        relayInfo.BalanceProtectionUsageUnknown,
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

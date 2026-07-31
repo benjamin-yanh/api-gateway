@@ -30,6 +30,26 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+type GroupModel struct {
+	Group string
+	Model string
+}
+
+// GetEnabledGroupModels returns the distinct enabled group/model pairs for the
+// supplied groups. Keeping the pair is required because group-specific ratios
+// can make the same model more expensive in one group than another.
+func GetEnabledGroupModels(groups []string) ([]GroupModel, error) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+	var pairs []GroupModel
+	err := DB.Model(&Ability{}).
+		Where(map[string]interface{}{"group": groups, "enabled": true}).
+		Distinct("group", "model").
+		Find(&pairs).Error
+	return pairs, err
+}
+
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").
