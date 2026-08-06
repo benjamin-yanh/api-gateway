@@ -1,12 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"embed"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -39,26 +38,74 @@ import (
 	_ "net/http/pprof"
 )
 
-//go:embed web/dist
-var buildFS embed.FS
+type serverRole string
 
-//go:embed web/dist/index.html
-var indexPage []byte
+const (
+	serverRoleAll     serverRole = "all"
+	serverRoleControl serverRole = "control"
+	serverRoleRelay   serverRole = "relay"
+)
+
+// DefaultServerRole is overridden with -ldflags for the split backend images.
+// The environment variable SERVER_ROLE takes precedence at runtime.
+var DefaultServerRole = string(serverRoleAll)
+
+// LockedServerRole is set only for split binaries. When non-empty, runtime
+// configuration cannot turn a relay executable into a control-plane server.
+var LockedServerRole string
+
+func resolveServerRole() (serverRole, error) {
+	configuredRole := serverRole(strings.ToLower(strings.TrimSpace(os.Getenv("SERVER_ROLE"))))
+	lockedRole := serverRole(strings.ToLower(strings.TrimSpace(LockedServerRole)))
+	if lockedRole != "" {
+		if configuredRole != "" && configuredRole != lockedRole {
+			return "", fmt.Errorf("SERVER_ROLE %q cannot override locked executable role %q", configuredRole, lockedRole)
+		}
+		configuredRole = lockedRole
+	}
+
+	role := configuredRole
+	if role == "" {
+		role = serverRole(strings.ToLower(strings.TrimSpace(DefaultServerRole)))
+	}
+	switch role {
+	case serverRoleAll, serverRoleControl, serverRoleRelay:
+		return role, nil
+	default:
+		return "", fmt.Errorf("invalid SERVER_ROLE %q: expected all, control, or relay", role)
+	}
+}
+
+func (role serverRole) hasControlPlane() bool {
+	return role == serverRoleAll || role == serverRoleControl
+}
+
+func (role serverRole) hasDataPlane() bool {
+	return role == serverRoleAll || role == serverRoleRelay
+}
 
 func main() {
 	startTime := time.Now()
+	role, err := resolveServerRole()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if role == serverRoleRelay {
+		// Relay nodes never own schema migration or control-plane leader jobs.
+		_ = os.Setenv("NODE_TYPE", "slave")
+	}
 	kitutil.SetLogging(common.SysLog, func(message string) {
 		logger.LogError(nil, message)
 	})
 	kitutil.SetSystemErrorLogging(common.SysError)
 
-	err := InitResources()
+	err = InitResources(role)
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
 	}
 
-	common.SysLog("New API " + common.Version + " started")
+	common.SysLog(fmt.Sprintf("New API %s started with server role %s", common.Version, role))
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -108,13 +155,17 @@ func main() {
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 
-	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
-	go authz.StartPolicySync(common.SyncFrequency)
+	if role.hasControlPlane() {
+		// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
+		go authz.StartPolicySync(common.SyncFrequency)
+	}
 
-	// 数据看板
-	go model.UpdateQuotaData()
+	if role.hasDataPlane() {
+		// 数据看板聚合发生在产生模型用量的数据面。
+		go model.UpdateQuotaData()
+	}
 
-	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
+	if role.hasControlPlane() && os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {
 			common.FatalLog("failed to parse CHANNEL_UPDATE_FREQUENCY: " + err.Error())
@@ -123,35 +174,35 @@ func main() {
 	}
 
 	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
-	service.StartCodexCredentialAutoRefreshTask()
+	if role.hasControlPlane() {
+		service.StartCodexCredentialAutoRefreshTask()
 
-	// Subscription quota reset task (daily/weekly/monthly/custom)
-	service.StartSubscriptionQuotaResetTask()
+		// Subscription quota reset task (daily/weekly/monthly/custom)
+		service.StartSubscriptionQuotaResetTask()
+	}
 
 	// Report this process as a system instance so the System Info page can show
 	// all currently alive nodes in multi-instance deployments.
 	service.StartSystemInstanceReporter()
 
-	// Wire task polling adaptor factory (breaks service -> relay import cycle).
-	// Must run before the system task runner starts: the async_task_poll handler
-	// calls service.RunTaskPollingOnce, which needs this factory set.
-	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
-		a := relay.GetTaskAdaptor(platform)
-		if a == nil {
-			return nil
+	if role.hasControlPlane() {
+		// Wire task polling adaptor factory (breaks service -> relay import cycle).
+		// Must run before the system task runner starts: the async_task_poll handler
+		// calls service.RunTaskPollingOnce, which needs this factory set.
+		service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
+			a := relay.GetTaskAdaptor(platform)
+			if a == nil {
+				return nil
+			}
+			return a
 		}
-		return a
+
+		// Register control-plane scheduled jobs once. Relay replicas never run them.
+		controller.RegisterScheduledSystemTasks()
+		service.StartSystemTaskRunner()
 	}
 
-	// Register the periodic channel test, upstream model update, and async task
-	// polling (Midjourney / Suno / video) jobs as scheduled system tasks
-	// (DB-lease dedup across masters + run history), then start the runner that
-	// schedules and executes them. Master-only execution and the UpdateTask
-	// switch are enforced inside the runner and each handler's Enabled().
-	controller.RegisterScheduledSystemTasks()
-	service.StartSystemTaskRunner()
-
-	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
+	if role.hasDataPlane() && os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
 		model.InitBatchUpdater()
@@ -163,11 +214,6 @@ func main() {
 		})
 		go common.Monitor()
 		common.SysLog("pprof enabled")
-	}
-
-	err = common.StartPyroScope()
-	if err != nil {
-		common.SysError(fmt.Sprintf("start pyroscope error : %v", err))
 	}
 
 	// Initialize HTTP server
@@ -191,21 +237,32 @@ func main() {
 	server.Use(middleware.Version())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
-	InjectUmamiAnalytics()
-	InjectGoogleAnalytics()
-
-	// 设置路由
-	router.SetRouter(server, router.WebAssets{
-		BuildFS:   buildFS,
-		IndexPage: indexPage,
+	server.GET("/healthz", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": true, "role": role})
 	})
+
+	switch role {
+	case serverRoleControl:
+		router.SetControlPlaneRouter(server)
+	case serverRoleRelay:
+		router.SetDataPlaneRouter(server)
+	default:
+		router.SetRouter(server, router.WebAssets{
+			BuildFS:   buildFS,
+			IndexPage: indexPage,
+		})
+	}
 	var port = os.Getenv("PORT")
 	if port == "" {
 		port = strconv.Itoa(*common.Port)
 	}
+	listenAddress := ":" + port
+	if bindAddress := strings.TrimSpace(os.Getenv("BIND_ADDRESS")); bindAddress != "" {
+		listenAddress = net.JoinHostPort(bindAddress, port)
+	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    listenAddress,
 		Handler: server,
 	}
 
@@ -232,56 +289,13 @@ func main() {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
-	if common.DataExportEnabled {
+	if role.hasDataPlane() && common.DataExportEnabled {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog("server exited")
 }
 
-func InjectUmamiAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("UMAMI_WEBSITE_ID") != "" {
-		umamiSiteID := os.Getenv("UMAMI_WEBSITE_ID")
-		umamiScriptURL := os.Getenv("UMAMI_SCRIPT_URL")
-		if umamiScriptURL == "" {
-			umamiScriptURL = "https://analytics.umami.is/script.js"
-		}
-		analyticsInjectBuilder.WriteString("<script defer src=\"")
-		analyticsInjectBuilder.WriteString(umamiScriptURL)
-		analyticsInjectBuilder.WriteString("\" data-website-id=\"")
-		analyticsInjectBuilder.WriteString(umamiSiteID)
-		analyticsInjectBuilder.WriteString("\"></script>")
-	}
-	analyticsInjectBuilder.WriteString("<!--Umami QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--umami-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-}
-
-func InjectGoogleAnalytics() {
-	analyticsInjectBuilder := &strings.Builder{}
-	if os.Getenv("GOOGLE_ANALYTICS_ID") != "" {
-		gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
-		// Google Analytics 4 (gtag.js)
-		analyticsInjectBuilder.WriteString("<script async src=\"https://www.googletagmanager.com/gtag/js?id=")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("\"></script>")
-		analyticsInjectBuilder.WriteString("<script>")
-		analyticsInjectBuilder.WriteString("window.dataLayer = window.dataLayer || [];")
-		analyticsInjectBuilder.WriteString("function gtag(){dataLayer.push(arguments);}")
-		analyticsInjectBuilder.WriteString("gtag('js', new Date());")
-		analyticsInjectBuilder.WriteString("gtag('config', '")
-		analyticsInjectBuilder.WriteString(gaID)
-		analyticsInjectBuilder.WriteString("');")
-		analyticsInjectBuilder.WriteString("</script>")
-	}
-	analyticsInjectBuilder.WriteString("<!--Google Analytics QuantumNous-->\n")
-	analyticsInject := []byte(analyticsInjectBuilder.String())
-	placeholder := []byte("<!--Google Analytics-->\n")
-	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
-}
-
-func InitResources() error {
+func InitResources(role serverRole) error {
 	// Initialize resources here if needed
 	// This is a placeholder function for future resource initialization
 	err := godotenv.Load(".env")
@@ -309,9 +323,11 @@ func InitResources() error {
 		common.FatalLog("failed to initialize database: " + err.Error())
 		return err
 	}
-	if err = authz.Init(model.DB); err != nil {
-		common.FatalLog("failed to initialize authorization: " + err.Error())
-		return err
+	if role.hasControlPlane() {
+		if err = authz.Init(model.DB); err != nil {
+			common.FatalLog("failed to initialize authorization: " + err.Error())
+			return err
+		}
 	}
 
 	model.CheckSetup()
@@ -355,14 +371,16 @@ func InitResources() error {
 	// Register user language loader for lazy loading
 	i18n.SetUserLangLoader(model.GetUserLanguage)
 
-	// Load custom OAuth providers from database
-	err = oauth.LoadCustomProviders()
-	if err != nil {
-		common.SysError("failed to load custom OAuth providers: " + err.Error())
-		// Don't return error, custom OAuth is not critical
-	}
+	if role.hasControlPlane() {
+		// Load custom OAuth providers from database only in the control plane.
+		err = oauth.LoadCustomProviders()
+		if err != nil {
+			common.SysError("failed to load custom OAuth providers: " + err.Error())
+			// Don't return error, custom OAuth is not critical
+		}
 
-	service.StartAuthArtifactCleanup()
+		service.StartAuthArtifactCleanup()
+	}
 
 	return nil
 }

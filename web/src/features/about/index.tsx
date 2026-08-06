@@ -17,35 +17,99 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Construction } from 'lucide-react'
+import { Activity, KeyRound, Network, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { Skeleton } from '@/components/ui/skeleton'
-import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
+import { isLikelyHtml } from '@/lib/content-format'
 
 import { getAboutContent } from './api'
 
 function EmptyAboutState() {
   const { t } = useTranslation()
   const currentYear = new Date().getFullYear()
+  const capabilities = [
+    {
+      icon: Network,
+      title: t('Unified API gateway'),
+      description: t(
+        'Connect applications to multiple AI providers through OpenAI-compatible endpoints.'
+      ),
+    },
+    {
+      icon: KeyRound,
+      title: t('Access and billing controls'),
+      description: t(
+        'Manage API keys, quotas, routing, pricing, and usage records from one console.'
+      ),
+    },
+    {
+      icon: Activity,
+      title: t('Operations visibility'),
+      description: t(
+        'Monitor channel health, request usage, errors, and service instances.'
+      ),
+    },
+  ]
 
   return (
-    <div className='flex min-h-[60vh] items-center justify-center p-8'>
-      <div className='max-w-2xl space-y-6 text-center'>
-        <div className='flex justify-center'>
-          <Construction className='text-muted-foreground h-24 w-24' />
+    <div className='mx-auto max-w-6xl space-y-10 px-4 py-12 sm:py-16'>
+      <section className='space-y-4 text-center'>
+        <div className='bg-primary/10 text-primary mx-auto flex size-14 items-center justify-center rounded-2xl'>
+          <Network className='size-7' aria-hidden='true' />
         </div>
-        <div className='space-y-2'>
-          <h2 className='text-2xl font-bold'>{t('No About Content Set')}</h2>
-          <p className='text-muted-foreground'>
+        <div className='mx-auto max-w-3xl space-y-3'>
+          <h1 className='text-3xl font-bold tracking-tight sm:text-4xl'>
+            {t('AI API Gateway')}
+          </h1>
+          <p className='text-muted-foreground text-base leading-7 sm:text-lg'>
             {t(
-              'The administrator has not configured any about content yet. You can set it in the settings page, supporting HTML or URL.'
+              'A privately operated AI API relay focused on stable access, unified authentication, routing, and usage management.'
             )}
           </p>
         </div>
-        <div className='space-y-4 text-sm'>
+      </section>
+
+      <section className='grid gap-4 md:grid-cols-3'>
+        {capabilities.map((capability) => (
+          <article key={capability.title} className='rounded-xl border p-5'>
+            <capability.icon
+              className='text-primary mb-4 size-6'
+              aria-hidden='true'
+            />
+            <h2 className='font-semibold'>{capability.title}</h2>
+            <p className='text-muted-foreground mt-2 text-sm leading-6'>
+              {capability.description}
+            </p>
+          </article>
+        ))}
+      </section>
+
+      <section className='bg-muted/40 rounded-xl border p-6 sm:p-8'>
+        <div className='flex items-start gap-4'>
+          <ShieldCheck
+            className='text-primary mt-0.5 size-7 shrink-0'
+            aria-hidden='true'
+          />
+          <div className='space-y-3'>
+            <h2 className='text-xl font-semibold'>{t('Privacy and security')}</h2>
+            <p className='text-muted-foreground leading-7'>
+              {t(
+                'Requests are forwarded only to the AI provider selected by the configured routing policy. This service does not include third-party analytics, external update checks, GPU deployment, or built-in chat features.'
+              )}
+            </p>
+            <p className='text-muted-foreground leading-7'>
+              {t(
+                'Do not submit secrets or regulated data unless the selected upstream provider and your operating policies permit it.'
+              )}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer className='space-y-4 border-t pt-6 text-center text-sm'>
           <p>
             {t('New API Project Repository:')}{' '}
             <a
@@ -106,14 +170,12 @@ function EmptyAboutState() {
             </a>
             .
           </p>
-        </div>
-      </div>
+      </footer>
     </div>
   )
 }
 
 export function About() {
-  const { t } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: ['about-content'],
     queryFn: getAboutContent,
@@ -121,7 +183,6 @@ export function About() {
 
   const rawContent = data?.data?.trim() ?? ''
   const hasContent = rawContent.length > 0
-  const isUrl = hasContent && isHttpUrl(rawContent)
   const contentIsHtml = hasContent && isLikelyHtml(rawContent)
 
   if (isLoading) {
@@ -141,19 +202,6 @@ export function About() {
     return (
       <PublicLayout>
         <EmptyAboutState />
-      </PublicLayout>
-    )
-  }
-
-  if (isUrl) {
-    return (
-      <PublicLayout showMainContainer={false}>
-        <iframe
-          src={rawContent}
-          className='h-[calc(100vh-3.5rem)] w-full border-0'
-          title={t('About')}
-          sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts'
-        />
       </PublicLayout>
     )
   }

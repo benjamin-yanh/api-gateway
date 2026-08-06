@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -27,10 +28,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	clientVersion, err := GetLatestCodexClientVersion(ctx, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Codex client version: %w", err)
-	}
+	clientVersion := common.GetEnvOrDefaultString("CODEX_CLIENT_VERSION", "0.98.0")
 
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {

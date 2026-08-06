@@ -21,11 +21,11 @@ const legacyOrigin = 'https://legacy-route.invalid'
 const legacyConsoleRoutes: Record<string, string> = {
   '/console': '/dashboard',
   '/console/models': '/models',
-  '/console/deployment': '/models/deployments',
+  '/console/deployment': '/models/metadata',
   '/console/subscription': '/subscriptions',
   '/console/channel': '/channels',
   '/console/token': '/keys',
-  '/console/playground': '/playground',
+  '/console/playground': '/dashboard',
   '/console/redemption': '/redemption-codes',
   '/console/user': '/users',
   '/console/personal': '/profile',
@@ -37,13 +37,13 @@ const legacyConsoleRoutes: Record<string, string> = {
 const legacySettingsTabs: Record<string, string> = {
   operation: '/system-settings/operations/behavior',
   dashboard: '/system-settings/content/dashboard',
-  chats: '/system-settings/content/chat',
+  chats: '/system-settings/content/dashboard',
   drawing: '/system-settings/content/drawing',
   payment: '/system-settings/billing/payment',
   ratio: '/system-settings/billing/model-pricing',
   ratelimit: '/system-settings/security/rate-limit',
   models: '/system-settings/models/global',
-  'model-deployment': '/system-settings/models/model-deployment',
+  'model-deployment': '/system-settings/models/global',
   performance: '/system-settings/operations/performance',
   system: '/system-settings/site/system-info',
   other: '/system-settings/site/system-info',
@@ -90,8 +90,7 @@ export function resolveLegacyRoute(rawHref: string): string | null {
     return buildTargetHref('/dashboard', source)
   }
   if (pathname.startsWith('/console/chat/')) {
-    const chatID = pathname.slice('/console/chat/'.length)
-    return buildTargetHref(chatID ? `/chat/${chatID}` : '/dashboard', source)
+    return buildTargetHref('/dashboard', source)
   }
 
   const target = legacyConsoleRoutes[pathname]

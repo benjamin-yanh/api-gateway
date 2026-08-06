@@ -577,13 +577,6 @@ func calculateUserPermissions(userRole int) map[string]interface{} {
 func generateDefaultSidebarConfig(userRole int) string {
 	defaultConfig := map[string]interface{}{}
 
-	// 聊天区域 - 所有用户都可以访问
-	defaultConfig["chat"] = map[string]interface{}{
-		"enabled":    true,
-		"playground": true,
-		"chat":       true,
-	}
-
 	// 控制台区域 - 所有用户都可以访问
 	defaultConfig["console"] = map[string]interface{}{
 		"enabled":    true,
@@ -808,7 +801,18 @@ func UpdateSelf(c *gin.Context) {
 
 		// 更新sidebar_modules字段
 		if sidebarModulesStr, ok := sidebarModules.(string); ok {
-			currentSetting.SidebarModules = sidebarModulesStr
+			var sidebarConfig map[string]interface{}
+			if err := common.UnmarshalJsonStr(sidebarModulesStr, &sidebarConfig); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+			delete(sidebarConfig, "chat")
+			sanitizedSidebarConfig, err := common.Marshal(sidebarConfig)
+			if err != nil {
+				common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+				return
+			}
+			currentSetting.SidebarModules = string(sanitizedSidebarConfig)
 		}
 
 		if err := model.UpdateUserSetting(user.Id, currentSetting); err != nil {

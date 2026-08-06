@@ -1,0 +1,8 @@
+**
+!web
+!web/**
+!VERSION
+!deploy
+!deploy/nginx.split.conf
+web/node_modules
+web/dist

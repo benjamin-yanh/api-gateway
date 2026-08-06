@@ -33,7 +33,6 @@ Transitive dependencies should be audited before a final external release.
 | backend     | production  | Go        | `github.com/golang-jwt/jwt/v5`                        | `v5.3.0`                             | MIT                                                |
 | backend     | production  | Go        | `github.com/google/uuid`                              | `v1.6.0`                             | BSD-3-Clause                                       |
 | backend     | production  | Go        | `github.com/gorilla/websocket`                        | `v1.5.0`                             | BSD-2-Clause                                       |
-| backend     | production  | Go        | `github.com/grafana/pyroscope-go`                     | `v1.2.7`                             | Apache-2.0                                         |
 | backend     | production  | Go        | `github.com/jfreymuth/oggvorbis`                      | `v1.0.5`                             | MIT                                                |
 | backend     | production  | Go        | `github.com/jinzhu/copier`                            | `v0.4.0`                             | MIT                                                |
 | backend     | production  | Go        | `github.com/joho/godotenv`                            | `v1.5.1`                             | MIT                                                |
@@ -83,7 +82,6 @@ Transitive dependencies should be audited before a final external release.
 | web | production | npm | `@tanstack/react-virtual` | `3.14.6` | MIT |
 | web | production | npm | `@visactor/react-vchart` | `2.1.4` | MIT |
 | web | production | npm | `@visactor/vchart` | `2.1.4` | MIT |
-| web | production | npm | `ai` | `7.0.31` | Apache-2.0 |
 | web | production | npm | `auto-skeleton-react` | `1.0.5` | MIT |
 | web | production | npm | `axios` | `1.18.1` | MIT |
 | web | production | npm | `class-variance-authority` | `0.7.1` | Apache-2.0 |
@@ -113,12 +111,10 @@ Transitive dependencies should be audited before a final external release.
 | web | production | npm | `shiki` | `4.3.1` | MIT |
 | web | production | npm | `sonner` | `2.0.7` | MIT |
 | web | production | npm | `sse.js` | `2.8.0` | Apache-2.0 |
-| web | production | npm | `stream-markdown-parser` | `1.1.3` | MIT |
 | web | production | npm | `tailwind-merge` | `3.6.0` | MIT |
 | web | production | npm | `tailwindcss` | `4.3.3` | MIT |
 | web | production | npm | `tokenlens` | `1.3.1` | MIT |
 | web | production | npm | `tw-animate-css` | `1.4.0` | MIT |
-| web | production | npm | `use-stick-to-bottom` | `1.1.6` | MIT |
 | web | production | npm | `vaul` | `1.1.2` | MIT |
 | web | production | npm | `zod` | `4.4.3` | MIT |
 | web | production | npm | `zustand` | `5.0.14` | MIT |

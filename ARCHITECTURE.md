@@ -131,7 +131,6 @@ flowchart LR
 - `/v1beta/models/*` 与 Gemini 兼容入口
 - `/mj/*` Midjourney 任务接口
 - `/suno/*` Suno 任务接口
-- `/pg/chat/completions` Playground 内部入口
 
 这部分本质上是统一 AI 中继层。
 
