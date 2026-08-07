@@ -84,7 +84,6 @@ const SETUP_GUIDE_CODE_PATTERN = [
 type DashboardActionPath =
   | '/keys'
   | '/wallet'
-  | '/dashboard/models'
   | '/channels'
   | '/usage-logs'
   | '/pricing'
@@ -516,7 +515,7 @@ export function OverviewDashboard() {
       {
         title: t('Send a request'),
         description: t('Verify routing with your API client'),
-        to: '/dashboard/models',
+        to: '/pricing',
         icon: TerminalSquare,
         completed: requestCount > 0,
       },

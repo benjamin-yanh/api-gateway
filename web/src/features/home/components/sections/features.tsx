@@ -41,9 +41,9 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'fast',
       num: '01',
-      title: t('Lightning Fast'),
+      title: t('Multi-model Foundation'),
       desc: t(
-        'Optimized network architecture ensures millisecond response times'
+        'Combine leading text, image, audio, and multimodal models for each business scenario'
       ),
       span: 'md:col-span-2',
       icon: <Zap className='size-4 text-blue-400' />,
@@ -65,9 +65,9 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'secure',
       num: '02',
-      title: t('Secure & Reliable'),
+      title: t('Secure Enterprise Access'),
       desc: t(
-        'Enterprise-grade security with comprehensive permission management'
+        'Manage users, permissions, quotas, and model access with centralized policies'
       ),
       span: 'md:col-span-1',
       icon: <Shield className='size-4 text-emerald-400' />,
@@ -102,8 +102,10 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'global',
       num: '03',
-      title: t('Global Coverage'),
-      desc: t('Multi-region deployment for stable global access'),
+      title: t('Production Operations'),
+      desc: t(
+        'Balance availability, quality, and cost with health checks, scheduling, and usage insights'
+      ),
       span: 'md:col-span-1',
       icon: <Globe className='size-4 text-violet-400' />,
       visual: (
@@ -131,8 +133,10 @@ export function Features(_props: FeaturesProps) {
     {
       id: 'developer',
       num: '04',
-      title: t('Developer Friendly'),
-      desc: t('Compatible API routes for common AI application workflows'),
+      title: t('Application-ready Integration'),
+      desc: t(
+        'Connect products through OpenAI, Claude, Gemini, and other familiar protocols'
+      ),
       span: 'md:col-span-2',
       icon: <Code className='size-4 text-amber-400' />,
       visual: (
@@ -159,23 +163,25 @@ export function Features(_props: FeaturesProps) {
   const additionalFeatures = [
     {
       icon: <Gauge className='size-5' strokeWidth={1.5} />,
-      title: t('High Performance'),
-      desc: t('Support for high concurrency with automatic load balancing'),
+      title: t('Customer Service AI'),
+      desc: t('Build responsive assistants for support, sales, and service teams'),
     },
     {
       icon: <DollarSign className='size-5' strokeWidth={1.5} />,
-      title: t('Transparent Billing'),
-      desc: t('Pay-as-you-go with real-time usage monitoring'),
+      title: t('Knowledge Assistants'),
+      desc: t('Connect trusted models to internal knowledge and business workflows'),
     },
     {
       icon: <Users className='size-5' strokeWidth={1.5} />,
-      title: t('Team Collaboration'),
-      desc: t('Multi-user management with flexible permission allocation'),
+      title: t('Content & Productivity'),
+      desc: t('Power content creation, analysis, coding, and daily automation'),
     },
     {
       icon: <HeartHandshake className='size-5' strokeWidth={1.5} />,
-      title: t('Open Source'),
-      desc: t('Community driven, self-hosted, and extensible'),
+      title: t('Private Deployment'),
+      desc: t(
+        'Keep platform data and operational control in your own environment'
+      ),
     },
   ]
 
@@ -184,12 +190,12 @@ export function Features(_props: FeaturesProps) {
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-16 max-w-lg'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('Core Features')}
+            {t('AI Solution Capabilities')}
           </p>
           <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-            {t('Built for developers,')}
+            {t('From model access to')}
             <br />
-            {t('designed for scale')}
+            {t('production-ready AI applications')}
           </h2>
         </AnimateInView>
 
