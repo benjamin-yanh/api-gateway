@@ -33,7 +33,7 @@ jobs:
         env:
           CI: ""
         run: |
-          cd web
+          cd frontend
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
@@ -41,15 +41,20 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
+          cache-dependency-path: backend/go.sum
       - name: Build Backend (amd64)
         run: |
+          mkdir -p backend/frontend
+          cp -R frontend/dist backend/frontend/
+          cd backend
           go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-$VERSION
+          go build -tags embed -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o ../new-api-$VERSION
       - name: Build Backend (arm64)
         run: |
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o new-api-arm64-$VERSION
+          cd backend
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -tags embed -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o ../new-api-arm64-$VERSION
       - name: Generate checksums
         run: sha256sum new-api-* > checksums-linux.txt
 
@@ -83,7 +88,7 @@ jobs:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd web
+          cd frontend
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
@@ -91,10 +96,14 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
+          cache-dependency-path: backend/go.sum
       - name: Build Backend
         run: |
+          mkdir -p backend/frontend
+          cp -R frontend/dist backend/frontend/
+          cd backend
           go mod download
-          go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o new-api-macos-$VERSION
+          go build -tags embed -ldflags "-X 'new-api/common.Version=$VERSION'" -o ../new-api-macos-$VERSION
       - name: Generate checksums
         run: shasum -a 256 new-api-macos-* > checksums-macos.txt
 
@@ -130,7 +139,7 @@ jobs:
         env:
           CI: ""
         run: |
-          cd web
+          cd frontend
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ..
@@ -138,10 +147,14 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
+          cache-dependency-path: backend/go.sum
       - name: Build Backend
         run: |
+          mkdir -p backend/frontend
+          cp -R frontend/dist backend/frontend/
+          cd backend
           go mod download
-          go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o new-api-$VERSION.exe
+          go build -tags embed -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o ../new-api-$VERSION.exe
       - name: Generate checksums
         run: sha256sum new-api-*.exe > checksums-windows.txt
 

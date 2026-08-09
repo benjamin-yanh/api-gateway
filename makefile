@@ -1,27 +1,39 @@
-WEB_DIR = ./web
-API_DIR = .
+FRONTEND_DIR = ./frontend
+BACKEND_DIR = ./backend
 DEV_WEB_PORT ?= 5173
 DEV_COMPOSE_FILE = docker-compose.dev.yml
 DEV_POSTGRES_SERVICE = postgres
 DEV_API_SERVICE = new-api
 DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
-DEV_SQLITE_PATH ?= one-api.db
+DEV_SQLITE_PATH ?= backend/one-api.db
 
-.PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
+.PHONY: all build-backend build-web build-all-web prepare-embedded-web build-embedded start-api dev dev-api dev-api-rebuild dev-web reset-setup test
 
-all: build-all-web start-api
+all: build-backend build-web
+
+build-backend:
+	@echo "Building standalone backend..."
+	@cd $(BACKEND_DIR) && GOWORK=off go build ./...
 
 build-web:
 	@echo "Building web frontend..."
-	@cd $(WEB_DIR) && bun install --frozen-lockfile
-	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
+	@cd $(FRONTEND_DIR) && bun install --frozen-lockfile
+	@cd $(FRONTEND_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$$(cat ../VERSION) bun run build
+
+prepare-embedded-web: build-web
+	@mkdir -p $(BACKEND_DIR)/frontend
+	@cp -R $(FRONTEND_DIR)/dist $(BACKEND_DIR)/frontend/
+
+build-embedded: prepare-embedded-web
+	@echo "Building backend with embedded frontend..."
+	@cd $(BACKEND_DIR) && GOWORK=off go build -tags embed
 
 build-all-web: build-web
 
 start-api:
 	@echo "Starting api dev server..."
-	@cd $(API_DIR) && go run main.go &
+	@cd $(BACKEND_DIR) && go run . &
 
 dev-api:
 	@echo "Starting api services (docker)..."
@@ -34,19 +46,18 @@ dev-api-rebuild:
 dev-web:
 	@echo "Starting web frontend dev server..."
 	@echo "Web frontend: http://localhost:$(DEV_WEB_PORT)"
-	@cd $(WEB_DIR) && bun install
-	@cd $(WEB_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_PORT)
+	@cd $(FRONTEND_DIR) && bun install
+	@cd $(FRONTEND_DIR) && bun run dev -- --host 0.0.0.0 --port $(DEV_WEB_PORT)
 
-dev: dev-api dev-web
+dev: start-api dev-web
 
-# The main package embeds the ignored web/dist output and is covered after build-web.
 test:
-	@echo "Testing root Go module..."
-	@root_module=$$(GOWORK=off go list -m); \
+	@echo "Testing backend Go module..."
+	@cd $(BACKEND_DIR) && root_module=$$(GOWORK=off go list -m); \
 		root_packages=$$(GOWORK=off go list -e ./... | grep -vxF "$$root_module"); \
 		GOWORK=off go test $$root_packages
 	@echo "Testing relaykit Go module..."
-	@cd relaykit && GOWORK=off go test ./...
+	@cd $(BACKEND_DIR)/relaykit && GOWORK=off go test ./...
 
 reset-setup:
 	@echo "Resetting local setup wizard state..."

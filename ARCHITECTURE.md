@@ -31,17 +31,17 @@ Router -> Middleware -> Controller -> Service -> Model
 
 各层职责如下：
 
-- `router/`
+- `backend/router/`
   负责注册 HTTP 路由，区分 API、Relay、Dashboard、Web、Video 等入口。
-- `middleware/`
+- `backend/middleware/`
   负责横切逻辑，如鉴权、限流、分发、日志、统计、国际化、缓存、请求体清理。
-- `controller/`
+- `backend/controller/`
   负责协议层与接口层编排，解析请求、组织响应、调用服务层或中继层。
-- `service/`
+- `backend/service/`
   负责业务规则，如渠道选择、计费预扣、订阅配额重置、敏感词检测、亲和路由等。
-- `model/`
+- `backend/model/`
   负责数据库模型、缓存装载、数据查询与持久化。
-- `relay/`
+- `backend/relay/`
   负责上游协议适配、请求转换、流式处理、任务型接口对接。
 
 ### 3.2 高层组件图
@@ -73,7 +73,7 @@ flowchart LR
 
 ## 4. 启动流程
 
-服务入口在 [main.go](/Users/benjamin/Documents/github/new-api/main.go)。
+服务入口在 `backend/main.go`。
 
 启动阶段主要完成以下工作：
 
@@ -102,11 +102,11 @@ flowchart LR
 
 ## 5. 路由架构
 
-路由总入口位于 [router/main.go](/Users/benjamin/Documents/github/new-api/router/main.go)，由 `SetRouter` 统一注册。
+路由总入口位于 [backend/router/main.go](/Users/benjamin/Documents/github/new-api/backend/router/main.go)，由 `SetRouter` 统一注册。
 
 ### 5.1 API 路由
 
-[router/api-router.go](/Users/benjamin/Documents/github/new-api/router/api-router.go) 提供平台管理与业务接口，主要包括：
+[backend/router/api-router.go](/Users/benjamin/Documents/github/new-api/backend/router/api-router.go) 提供平台管理与业务接口，主要包括：
 
 - 系统初始化、状态、公告、协议页、首页内容
 - 用户注册、登录、2FA、Passkey、OAuth 绑定
@@ -118,7 +118,7 @@ flowchart LR
 
 ### 5.2 Relay 路由
 
-[router/relay-router.go](/Users/benjamin/Documents/github/new-api/router/relay-router.go) 是网关核心入口，主要包括：
+[backend/router/relay-router.go](/Users/benjamin/Documents/github/new-api/backend/router/relay-router.go) 是网关核心入口，主要包括：
 
 - `/v1/chat/completions`
 - `/v1/completions`
@@ -136,9 +136,9 @@ flowchart LR
 
 ### 5.3 Web 路由
 
-[router/web-router.go](/Users/benjamin/Documents/github/new-api/router/web-router.go) 负责：
+`backend/router/web-router.go` 负责：
 
-- 提供 `web/dist` 静态资源
+- 在 `embed` 构建模式下提供 `backend/frontend/dist` 静态资源
 - 处理前端单页应用回退
 - 区分 `/api`、`/v1`、`/assets` 等非页面请求
 
@@ -180,7 +180,7 @@ Controller 层是“接口编排层”：
 - 面向平台 API：接收管理动作，调用服务层和模型层
 - 面向 Relay：识别请求格式、触发计费、重试、上游适配与响应回写
 
-以 [controller/relay.go](/Users/benjamin/Documents/github/new-api/controller/relay.go) 为例，`Relay` 的职责包括：
+以 [backend/controller/relay.go](/Users/benjamin/Documents/github/new-api/backend/controller/relay.go) 为例，`Relay` 的职责包括：
 
 - 读取并校验请求体
 - 生成 `RelayInfo`
@@ -204,7 +204,7 @@ Service 层负责沉淀跨接口复用的业务策略，典型能力包括：
 - Codex 凭证刷新任务
 - 支付、下载、通知等横向服务
 
-例如 [service/channel_select.go](/Users/benjamin/Documents/github/new-api/service/channel_select.go) 定义了自动分组重试策略：
+例如 [backend/service/channel_select.go](/Users/benjamin/Documents/github/new-api/backend/service/channel_select.go) 定义了自动分组重试策略：
 
 - 支持 `auto` 分组
 - 支持跨分组重试
@@ -221,7 +221,7 @@ Model 层基于 GORM，承担：
 - 查询、更新、缓存预热
 - 渠道、用户、令牌、日志、订阅、配置等持久化操作
 
-[model/main.go](/Users/benjamin/Documents/github/new-api/model/main.go) 展示了数据库兼容设计：
+[backend/model/main.go](/Users/benjamin/Documents/github/new-api/backend/model/main.go) 展示了数据库兼容设计：
 
 - 自动识别 SQLite / MySQL / PostgreSQL
 - 根据数据库类型初始化保留字列名与布尔值字面量
@@ -237,7 +237,7 @@ Relay 层是上游供应商适配中心，包含两部分：
 - 通用中继逻辑：请求格式识别、计费辅助、流处理、模型价格辅助
 - 渠道适配器：不同上游供应商的请求转换与调用实现
 
-[relay/relay_adaptor.go](/Users/benjamin/Documents/github/new-api/relay/relay_adaptor.go) 通过 `GetAdaptor(apiType)` 将渠道类型映射到具体适配器，例如：
+[backend/relay/relay_adaptor.go](/Users/benjamin/Documents/github/new-api/backend/relay/relay_adaptor.go) 通过 `GetAdaptor(apiType)` 将渠道类型映射到具体适配器，例如：
 
 - `openai.Adaptor`
 - `claude.Adaptor`
@@ -316,14 +316,14 @@ sequenceDiagram
 
 ### 8.3 配置模块化封装
 
-[setting/config/config.go](/Users/benjamin/Documents/github/new-api/setting/config/config.go) 中的 `ConfigManager` 负责统一注册与装载配置模块。当前配置已按领域拆分到多个子目录：
+[backend/setting/config/config.go](/Users/benjamin/Documents/github/new-api/backend/setting/config/config.go) 中的 `ConfigManager` 负责统一注册与装载配置模块。当前配置已按领域拆分到多个子目录：
 
-- `setting/model_setting`
-- `setting/operation_setting`
-- `setting/system_setting`
-- `setting/ratio_setting`
-- `setting/performance_setting`
-- `setting/billing_setting`
+- `backend/setting/model_setting`
+- `backend/setting/operation_setting`
+- `backend/setting/system_setting`
+- `backend/setting/ratio_setting`
+- `backend/setting/performance_setting`
+- `backend/setting/billing_setting`
 
 这使配置不再是单个大对象，而是按业务域治理。
 
@@ -357,17 +357,17 @@ sequenceDiagram
 
 ## 10. 前端架构
 
-前端位于 `web/`，基于 React 18 + Vite + Semi Design UI。
+前端位于 `frontend/`，基于 React 19、TypeScript、Rsbuild、Base UI 和 Tailwind CSS。
 
 ### 10.1 前端入口
 
-- [web/src/index.jsx](/Users/benjamin/Documents/github/new-api/web/src/index.jsx)
-- [web/src/App.jsx](/Users/benjamin/Documents/github/new-api/web/src/App.jsx)
+- `frontend/src/main.tsx`
+- `frontend/src/routes/__root.tsx`
 
 前端入口负责：
 
-- 初始化 `BrowserRouter`
-- 注入 `StatusProvider`、`UserProvider`、`ThemeProvider`
+- 初始化 TanStack Router
+- 注入 Query、主题、字体和文字方向 Provider
 - 初始化 i18n
 - 挂载统一页面布局 `PageLayout`
 
@@ -381,7 +381,7 @@ sequenceDiagram
 
 ### 10.3 设置页组织
 
-[web/src/pages/Setting/index.jsx](/Users/benjamin/Documents/github/new-api/web/src/pages/Setting/index.jsx) 展示了后台设置页按业务域拆分的方式：
+`frontend/src/features/system-settings/` 展示了后台设置页按业务域拆分的方式：
 
 - 运营设置
 - 仪表盘设置
@@ -396,15 +396,17 @@ sequenceDiagram
 - 系统设置
 - 其他设置
 
-这与后端 `setting/` 的领域拆分基本一致。
+这与后端 `backend/setting/` 的领域拆分基本一致。
 
 ### 10.4 前后端交付方式
 
-前端构建结果输出到 `web/dist`，由后端二进制通过 `embed` 打包并提供静态服务，因此默认部署形态是单体应用：
+前端和后端默认独立构建与部署：
 
-- 一个 Go 服务
-- 一个内嵌前端控制台
-- 一组统一 API / Relay 入口
+- `frontend/dist` 可部署到静态站点或 CDN
+- `backend/` 构建为独立的 API / Relay 服务
+- `FRONTEND_BASE_URL` 可让后端未匹配的页面请求跳转到前端站点
+
+为兼容单体发布，可运行 `make build-embedded`，它会将 `frontend/dist` 复制到 `backend/frontend/dist`，并使用 `embed` 构建标签生成内嵌前端资源的后端二进制。
 
 ## 11. 关键业务子系统
 
@@ -430,7 +432,7 @@ sequenceDiagram
 - 订阅额度周期刷新
 - 分组与模型定价管理
 
-如果修改表达式定价系统，必须先阅读 `pkg/billingexpr/expr.md`。
+如果修改表达式定价系统，必须先阅读 `backend/pkg/billingexpr/expr.md`。
 
 ### 11.3 认证与账户安全子系统
 
@@ -468,7 +470,7 @@ sequenceDiagram
 
 ### 12.2 前端 i18n
 
-前端使用 `i18next`，语言资源位于 `web/src/i18n/locales/`。
+前端使用 `i18next`，语言资源位于 `frontend/src/i18n/locales/`。
 
 当前前端语言覆盖：
 
@@ -487,10 +489,10 @@ sequenceDiagram
 
 标准落点如下：
 
-1. 在 `constant/` 中补充渠道或 API 类型常量
-2. 在 `relay/channel/<provider>/` 下实现 `Adaptor`
-3. 在 [relay/relay_adaptor.go](/Users/benjamin/Documents/github/new-api/relay/relay_adaptor.go) 注册映射
-4. 如涉及任务型接口，在 `relay/channel/task/...` 增加 `TaskAdaptor`
+1. 在 `backend/constant/` 中补充渠道或 API 类型常量
+2. 在 `backend/relay/channel/<provider>/` 下实现 `Adaptor`
+3. 在 `backend/relay/relay_adaptor.go` 注册映射
+4. 如涉及任务型接口，在 `backend/relay/channel/task/...` 增加 `TaskAdaptor`
 5. 如支持 `StreamOptions`，按项目规则加入 `streamSupportedChannels`
 6. 补齐模型映射、请求转换、错误处理与测试
 
@@ -498,17 +500,17 @@ sequenceDiagram
 
 推荐路径：
 
-1. `router/api-router.go` 注册接口
-2. `controller/` 增加请求处理
-3. `service/` 放业务规则
-4. `model/` 放持久化逻辑
-5. `web/src/pages` 或 `web/src/components` 增加前端页面
+1. `backend/router/api-router.go` 注册接口
+2. `backend/controller/` 增加请求处理
+3. `backend/service/` 放业务规则
+4. `backend/model/` 放持久化逻辑
+5. `frontend/src/features/` 或 `frontend/src/components/` 增加前端页面
 
 ### 13.3 新增配置项
 
 推荐路径：
 
-1. 选择合适的 `setting/<domain>` 模块
+1. 选择合适的 `backend/setting/<domain>` 模块
 2. 通过配置模块结构体注册
 3. 由 Option 表持久化
 4. 通过管理后台暴露编辑能力
@@ -517,11 +519,11 @@ sequenceDiagram
 
 本项目有几个必须遵守的实现约束：
 
-- JSON 编解码应统一走 `common/json.go` 封装
+- JSON 编解码应统一走 `backend/common/json.go` 封装
 - 数据库实现必须同时兼容 SQLite、MySQL、PostgreSQL
 - 前端优先使用 `bun`
 - Relay 请求 DTO 需要保留显式零值时，应使用指针字段配合 `omitempty`
-- 修改表达式计费系统前必须阅读 `pkg/billingexpr/expr.md`
+- 修改表达式计费系统前必须阅读 `backend/pkg/billingexpr/expr.md`
 
 这些约束不是代码风格建议，而是影响兼容性与行为正确性的架构约束。
 

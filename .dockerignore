@@ -4,9 +4,12 @@
 .vscode
 .gitignore
 Makefile
-docs
+/backend/docs
 .eslintcache
 .gocache
-/web/node_modules
-/web/dist
+/frontend/node_modules
+/frontend/dist
+/frontend/electron/node_modules
+/frontend/electron/dist
+/backend/frontend/dist
 !THIRD-PARTY-LICENSES.md

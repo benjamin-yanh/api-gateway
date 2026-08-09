@@ -8,8 +8,9 @@ upload
 build
 *.db-journal
 logs
-web/dist
-web/node_modules
+frontend/dist
+frontend/node_modules
+backend/frontend/dist
 .env
 one-api
 new-api
@@ -24,9 +25,9 @@ plans
 .claude
 .cursor
 
-electron/node_modules
-electron/dist
-/data/
+frontend/electron/node_modules
+frontend/electron/dist
+/backend/data/
 .gomodcache/
 .gocache-temp
 .gopath
@@ -37,7 +38,7 @@ skills-lock.json
 
 # Local-only live probes and scratch test workspaces.
 .local-tests/
-service/relayconvert/chat_responses_live_local_test.go
-service/openaicompat/chat_responses_live_local_test.go
+backend/service/relayconvert/chat_responses_live_local_test.go
+backend/service/openaicompat/chat_responses_live_local_test.go
 go.work
 go.work.sum
