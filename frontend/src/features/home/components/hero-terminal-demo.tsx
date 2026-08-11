@@ -72,6 +72,32 @@ const ACCENT_CLASSES: Record<
 
 const API_DEMOS: ApiDemoConfig[] = [
   {
+    id: 'grok-chat',
+    label: 'Grok',
+    method: 'POST',
+    endpoint: '/v1/chat/completions',
+    headers: [
+      '"Authorization: Bearer sk-••••"',
+      '"Content-Type: application/json"',
+    ],
+    request: [
+      '"model": "grok-4.5",',
+      '"messages": [',
+      '  { "role": "user", "content": "..." }',
+      ']',
+    ],
+    response: [
+      '{',
+      '  "choices": [{ "message": { "content": <text> } }],',
+      '  "usage": { "total_tokens": <tokens> }',
+      '}',
+    ],
+    responseHighlights: ['<text>', '<tokens>'],
+    tokens: 34,
+    latency: 118,
+    accent: 'blue',
+  },
+  {
     id: 'gpt-chat',
     label: 'OpenAI',
     method: 'POST',
@@ -205,6 +231,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
 
   const demo = API_DEMOS[activeIndex]
   const accent = ACCENT_CLASSES[demo.accent]
+  const requestUrl = `${window.location.origin}${demo.endpoint}`
 
   return (
     <div className={cn('mx-auto w-full max-w-2xl', props.className)}>
@@ -218,7 +245,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
         {/* Tab strip */}
         <div
           className={cn(
-            'flex items-center gap-1 border-b px-2 sm:gap-1.5 sm:px-3',
+            'flex items-center gap-1 overflow-x-auto border-b px-2 sm:gap-1.5 sm:px-3',
             'border-border/50 dark:border-white/[0.05]'
           )}
         >
@@ -231,7 +258,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
                 key={item.id}
                 onClick={() => handleSelect(index)}
                 className={cn(
-                  'relative -mb-px flex items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
+                  'relative -mb-px flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-2.5 text-[11px] font-medium tracking-wide transition-colors sm:px-3 sm:text-xs',
                   isActive
                     ? `${tone.activeBorder} ${tone.activeText}`
                     : 'text-foreground/40 hover:text-foreground/70 border-transparent'
@@ -241,7 +268,7 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
               </button>
             )
           })}
-          <div className='ml-auto flex items-center gap-2 pr-2 sm:pr-3'>
+          <div className='ml-auto flex shrink-0 items-center gap-2 pr-2 sm:pr-3'>
             <span className='inline-block size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.45)]' />
             <span className='text-foreground/40 font-mono text-[10px] tracking-wider uppercase'>
               200 ok
@@ -270,14 +297,18 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
               transitioning ? 'opacity-0' : 'opacity-100'
             )}
           >
-            {demo.endpoint}
+            {requestUrl}
           </code>
         </div>
 
         {/* Body — fixed rows so neither block shifts when switching demos */}
         <div className='grid h-[400px] grid-rows-[235px_minmax(0,1fr)] font-mono text-[12.5px] leading-[1.55]'>
           {/* Request */}
-          <RequestBlock demo={demo} transitioning={transitioning} />
+          <RequestBlock
+            demo={demo}
+            requestUrl={requestUrl}
+            transitioning={transitioning}
+          />
 
           {/* Response */}
           <ResponseBlock demo={demo} transitioning={transitioning} />
@@ -317,8 +348,12 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
   )
 }
 
-function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
-  const { demo, transitioning } = props
+function RequestBlock(props: {
+  demo: ApiDemoConfig
+  requestUrl: string
+  transitioning: boolean
+}) {
+  const { demo, requestUrl, transitioning } = props
 
   return (
     <div className='relative px-5 py-4'>
@@ -331,7 +366,7 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
       >
         <CodeLine>
           <Command>curl</Command> <Flag>-X</Flag> <Flag>POST</Flag>{' '}
-          <StringText>&quot;{demo.endpoint}&quot;</StringText>{' '}
+          <StringText>&quot;{requestUrl}&quot;</StringText>{' '}
           <Muted>{'\\'}</Muted>
         </CodeLine>
         {demo.headers.map((header) => (
@@ -343,8 +378,8 @@ function RequestBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
         <CodeLine indent={2}>
           <Flag>-d</Flag> <StringText>&apos;{'{'}</StringText>
         </CodeLine>
-        {demo.request.map((line, i) => (
-          <CodeLine key={i} indent={4}>
+        {demo.request.map((line) => (
+          <CodeLine key={line} indent={4}>
             {renderJsonLine(line)}
           </CodeLine>
         ))}
@@ -373,8 +408,8 @@ function ResponseBlock(props: { demo: ApiDemoConfig; transitioning: boolean }) {
           transitioning ? 'opacity-0' : 'opacity-100'
         )}
       >
-        {demo.response.map((line, i) => (
-          <CodeLine key={i}>{renderResponseLine(line, demo)}</CodeLine>
+        {demo.response.map((line) => (
+          <CodeLine key={line}>{renderResponseLine(line, demo)}</CodeLine>
         ))}
       </div>
     </div>
@@ -406,36 +441,44 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
 
   if (matches.length === 0) return tokenize(line)
 
-  matches.forEach((match, idx) => {
+  matches.forEach((match) => {
     const start = match.index ?? 0
     if (start > cursor) {
       segments.push(
-        <span key={`pre-${idx}`}>{tokenize(line.slice(cursor, start))}</span>
+        <span key={`pre-${cursor}-${start}`}>
+          {tokenize(line.slice(cursor, start))}
+        </span>
       )
     }
     const placeholder = match[0]
     if (placeholder === '<text>') {
       segments.push(
-        <Accent key={`ph-${idx}`} accent={demo.accent}>
+        <Accent key={`ph-${start}-${placeholder}`} accent={demo.accent}>
           {`"${truncateResponse(demo)}"`}
         </Accent>
       )
     } else if (placeholder === '<tokens>') {
-      segments.push(<NumberText key={`ph-${idx}`}>{demo.tokens}</NumberText>)
+      segments.push(
+        <NumberText key={`ph-${start}-${placeholder}`}>
+          {demo.tokens}
+        </NumberText>
+      )
     } else if (placeholder === '<in>') {
       segments.push(
-        <NumberText key={`ph-${idx}`}>
+        <NumberText key={`ph-${start}-${placeholder}`}>
           {Math.floor(demo.tokens * 0.4)}
         </NumberText>
       )
     } else if (placeholder === '<out>') {
       segments.push(
-        <NumberText key={`ph-${idx}`}>
+        <NumberText key={`ph-${start}-${placeholder}`}>
           {Math.ceil(demo.tokens * 0.6)}
         </NumberText>
       )
     } else {
-      segments.push(<Muted key={`ph-${idx}`}>{placeholder}</Muted>)
+      segments.push(
+        <Muted key={`ph-${start}-${placeholder}`}>{placeholder}</Muted>
+      )
     }
     cursor = start + placeholder.length
   })
@@ -449,6 +492,7 @@ function renderResponseLine(line: string, demo: ApiDemoConfig): ReactNode {
 
 function truncateResponse(demo: ApiDemoConfig): string {
   const map: Record<string, string> = {
+    'grok-chat': 'Grok response routed.',
     'gpt-chat': 'Chat request routed.',
     responses: 'Response workflow ready.',
     claude: 'Claude message routed.',
@@ -463,20 +507,20 @@ function tokenize(input: string): ReactNode {
   let cursor = 0
   const matches = [...input.matchAll(STRING_RE)]
 
-  matches.forEach((match, idx) => {
+  matches.forEach((match) => {
     const start = match.index ?? 0
     if (start > cursor) {
       segments.push(
-        <Muted key={`m-${idx}`}>{input.slice(cursor, start)}</Muted>
+        <Muted key={`m-${cursor}-${start}`}>{input.slice(cursor, start)}</Muted>
       )
     }
     const text = match[0]
     const after = input.slice(start + text.length).trimStart()
     const isKey = after.startsWith(':')
     if (isKey) {
-      segments.push(<Key key={`k-${idx}`}>{text}</Key>)
+      segments.push(<Key key={`k-${start}-${text}`}>{text}</Key>)
     } else {
-      segments.push(<StringText key={`s-${idx}`}>{text}</StringText>)
+      segments.push(<StringText key={`s-${start}-${text}`}>{text}</StringText>)
     }
     cursor = start + text.length
   })

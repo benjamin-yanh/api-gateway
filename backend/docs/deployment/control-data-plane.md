@@ -15,7 +15,9 @@ control-plane routes through configuration.
 | Route family | Owner |
 | --- | --- |
 | `/api/*`, `/dashboard/*`, `/v1/dashboard/*` | Control plane |
+| `/anthropic/oauth/*`, `/anthropic/api/*`, `/anthropic/v1/oauth/*` | Control plane |
 | `/v1/*`, `/v1beta/*`, `/mj/*`, `/:mode/mj/*` | Data plane |
+| `/anthropic/v1/models*`, `/anthropic/v1/messages` | Data plane |
 | `/suno/*`, `/kling/*`, `/jimeng/*`, `/pg/*` | Data plane |
 | `/` and static assets | Web |
 

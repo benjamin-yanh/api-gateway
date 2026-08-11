@@ -23,6 +23,7 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 func SetControlPlaneRouter(router *gin.Engine) {
 	SetApiRouter(router)
 	SetDashboardRouter(router)
+	SetAnthropicControlRouter(router)
 }
 
 // SetDataPlaneRouter registers only model relay and media proxy APIs. In
@@ -30,6 +31,7 @@ func SetControlPlaneRouter(router *gin.Engine) {
 func SetDataPlaneRouter(router *gin.Engine) {
 	SetRelayRouter(router)
 	SetVideoRouter(router)
+	SetAnthropicDataRouter(router)
 }
 
 func setFrontendRouter(router *gin.Engine, assets WebAssets) {

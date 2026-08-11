@@ -70,6 +70,63 @@
 
 前端将冷启动状态与登录状态分开管理。网络或服务端临时故障允许后续导航重试 refresh；服务端确认 Refresh Cookie 无效时才进入已完成的匿名状态。内存 SID 与 Cookie SID 不一致时，客户端清除旧内存身份并在不携带旧 SID 的情况下重试一次。
 
+## 本地应用授权（OAuth 2.0 PKCE）
+
+桌面应用、CLI 和其他本机应用可以通过系统浏览器登录面板，再使用回环地址接收一次性授权码。该流程只接受 `http://127.0.0.1:<port>`、`http://localhost:<port>` 或 `http://[::1]:<port>`，端口必须为 `1024-65535`；不接受公网地址、自定义 URI Scheme、查询参数或 URL Fragment。
+
+客户端流程：
+
+1. 生成 43-128 字符的随机 `code_verifier`，计算 `code_challenge = BASE64URL(SHA256(code_verifier))`，并生成至少 16 字符的随机 `state`。
+2. 在本机启动临时 HTTP 回调监听器，例如 `http://127.0.0.1:49152/callback`。
+3. 使用系统浏览器打开：
+
+   ```text
+   https://<面板域名>/native-app?client_id=<客户端标识>&redirect_uri=http%3A%2F%2F127.0.0.1%3A49152%2Fcallback&code_challenge=<challenge>&code_challenge_method=S256&state=<state>
+   ```
+
+4. 用户登录并确认后，浏览器跳回 `http://127.0.0.1:49152/callback?code=<一次性授权码>&state=<state>`。客户端必须先精确校验 `state`。
+5. 客户端调用以下接口并提交相同的回调地址和原始 verifier：
+
+   ```http
+   POST /api/native-auth/token
+   Content-Type: application/json
+
+   {
+     "code": "<一次性授权码>",
+     "redirect_uri": "http://127.0.0.1:49152/callback",
+     "code_verifier": "<原始 verifier>"
+   }
+   ```
+
+授权码有效期为 2 分钟、只能消费一次，并绑定发起授权的浏览器会话、回调地址和 PKCE challenge。换取成功后返回 15 分钟 Access Token、可轮换的 Refresh Token、Session 和用户信息。Access Token 通过 `Authorization: Bearer <token>` 调用面板接口；Refresh Token 必须存入操作系统凭据保险库，不能写入 URL、日志或普通配置文件。
+
+本地应用使用 JSON Body 刷新和退出，不依赖浏览器 Cookie：
+
+| 接口 | Body | 用途 |
+| --- | --- | --- |
+| `POST /api/native-auth/refresh` | `{"refresh_token":"..."}` | 轮换 Refresh Token 并签发新的 Access Token |
+| `POST /api/native-auth/revoke` | `{"refresh_token":"..."}` | 撤销本地应用登录会话 |
+
+这里返回的是面板登录凭据，不会自动创建 `sk-` API Key。需要调用模型接口时，应在登录后通过现有 Token 管理接口由用户单独创建、限制并撤销 API Key。
+
+### Anthropic / Claude Desktop 兼容前缀
+
+Claude Desktop 或 Claude Code 可将 OAuth API Base、Apps Base 和模型 API Base 指向同一站点的 `/anthropic` 前缀。兼容接口复用上述回环地址、PKCE、一次性授权码和登录 Session 安全规则：
+
+| 接口 | 鉴权 | 用途 |
+| --- | --- | --- |
+| `GET /anthropic/oauth/authorize` | 浏览器登录 | 校验 OAuth 参数并跳转到授权确认页 |
+| `GET /anthropic/oauth/code/callback` | 无 | 兼容 OAuth 回调结果展示；本地客户端正常使用自己的 loopback callback |
+| `POST /anthropic/v1/oauth/token` | 授权码或 Refresh Token | 使用 JSON 或 Form Body 换取/刷新 OAuth Token |
+| `GET /anthropic/api/oauth/profile` | OAuth Bearer | 返回当前账号和组织资料 |
+| `GET /anthropic/api/oauth/claude_cli/roles` | OAuth Bearer | 返回 Claude CLI 所需的角色和 scope |
+| `POST /anthropic/api/oauth/claude_cli/create_api_key` | OAuth Bearer | 创建专用 `Claude Code` API Key，响应字段为 `raw_key` |
+| `GET /anthropic/v1/models` | `x-api-key` 或 API Key Bearer | 返回当前 Key 可用的 Anthropic 模型 |
+| `GET /anthropic/v1/models/:model` | `x-api-key` 或 API Key Bearer | 返回指定 Anthropic 模型 |
+| `POST /anthropic/v1/messages` | `x-api-key` 或 API Key Bearer | 使用 Claude Messages 协议调用模型 |
+
+OAuth Token 只用于 profile、roles 和 Key 签发等控制面接口。模型接口必须使用 `create_api_key` 返回的 `raw_key`，不能把 OAuth Access Token 当作模型 API Key。`/anthropic/oauth/code/callback` 不是本地应用的正常回调地址；本地应用仍应监听 `127.0.0.1`、`localhost` 或 `[::1]` 的动态端口。
+
 ## Session 签发限额与保留策略
 
 服务端在所有登录方式的统一 Session 签发出口执行两级账户限制：

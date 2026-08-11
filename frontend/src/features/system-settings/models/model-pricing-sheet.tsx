@@ -62,6 +62,7 @@ import {
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   EMPTY_LANE_ENABLED,
@@ -72,6 +73,8 @@ import {
   hasValue,
   laneConfigs,
   numericDraftRegex,
+  priceFromUSD,
+  priceToUSD,
   ratioFieldByLane,
   toNumberOrNull,
   type LaneKey,
@@ -145,6 +148,9 @@ export const ModelPricingEditorPanel = forwardRef<
   ref
 ) {
   const { t } = useTranslation()
+  const usdExchangeRate = useSystemConfigStore(
+    (state) => state.config.currency.usdExchangeRate || 1
+  )
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [promptPrice, setPromptPrice] = useState('')
   const [lanePrices, setLanePrices] = useState<Record<LaneKey, string>>({
@@ -174,12 +180,12 @@ export const ModelPricingEditorPanel = forwardRef<
   })
 
   useEffect(() => {
-    const nextLaneState = createInitialLaneState(editData)
+    const nextLaneState = createInitialLaneState(editData, usdExchangeRate)
 
     if (editData) {
       form.reset({
         name: editData.name,
-        price: editData.price || '',
+        price: priceFromUSD(editData.price, usdExchangeRate),
         ratio: editData.ratio || '',
         cacheRatio: editData.cacheRatio || '',
         createCacheRatio: editData.createCacheRatio || '',
@@ -188,13 +194,13 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      let nextPricingMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') {
+        nextPricingMode = 'tiered_expr'
+      } else if (editData.price) {
+        nextPricingMode = 'per-request'
+      }
+      setPricingMode(nextPricingMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -218,7 +224,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setLanePrices(nextLaneState.prices)
     setLaneEnabled(nextLaneState.enabled)
     setEditorReloadToken((token) => token + 1)
-  }, [editData, form])
+  }, [editData, form, usdExchangeRate])
 
   const setFormValue = (field: keyof ModelPricingFormValues, value: string) => {
     form.setValue(field, value, {
@@ -255,7 +261,9 @@ export const ModelPricingEditorPanel = forwardRef<
     const inputPrice = toNumberOrNull(nextPromptPrice)
     setFormValue(
       'ratio',
-      inputPrice !== null ? formatPricingNumber(inputPrice / 2) : ''
+      inputPrice !== null
+        ? formatPricingNumber(inputPrice / usdExchangeRate / 2)
+        : ''
     )
 
     laneConfigs.forEach(({ key }) => {
@@ -443,7 +451,7 @@ export const ModelPricingEditorPanel = forwardRef<
       const data: ModelRatioData = {
         name: values.name.trim(),
         billingMode: pricingMode,
-        price: values.price || '',
+        price: priceToUSD(values.price, usdExchangeRate),
         ratio: values.ratio || '',
         cacheRatio: values.cacheRatio || '',
         createCacheRatio: values.createCacheRatio || '',
@@ -460,7 +468,7 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, pricingMode, requestRuleExpr, usdExchangeRate]
   )
 
   useImperativeHandle(
@@ -562,11 +570,11 @@ export const ModelPricingEditorPanel = forwardRef<
                         <FieldLabel>{t('Input price')}</FieldLabel>
                         <PriceInput
                           value={promptPrice}
-                          placeholder='3'
+                          placeholder={formatPricingNumber(3 * usdExchangeRate)}
                           onChange={handlePromptPriceChange}
                         />
                         <FieldDescription>
-                          {t('USD price per 1M input tokens.')}
+                          {t('RMB price per 1M input tokens.')}
                         </FieldDescription>
                       </Field>
 
@@ -581,7 +589,9 @@ export const ModelPricingEditorPanel = forwardRef<
                               key={lane.key}
                               title={t(lane.titleKey)}
                               description={t(lane.descriptionKey)}
-                              placeholder={lane.placeholder}
+                              placeholder={formatPricingNumber(
+                                Number(lane.placeholder) * usdExchangeRate
+                              )}
                               value={lanePrices[lane.key]}
                               enabled={laneEnabled[lane.key]}
                               disabled={disabled}
@@ -609,10 +619,12 @@ export const ModelPricingEditorPanel = forwardRef<
                               <FieldLabel>{t('Fixed price')}</FieldLabel>
                               <FormControl>
                                 <InputGroup>
-                                  <InputGroupAddon>$</InputGroupAddon>
+                                  <InputGroupAddon>￥</InputGroupAddon>
                                   <InputGroupInput
                                     inputMode='decimal'
-                                    placeholder='0.01'
+                                    placeholder={formatPricingNumber(
+                                      0.01 * usdExchangeRate
+                                    )}
                                     {...field}
                                     onChange={(event) => {
                                       const value = event.target.value
@@ -628,7 +640,7 @@ export const ModelPricingEditorPanel = forwardRef<
                               </FormControl>
                               <FieldDescription>
                                 {t(
-                                  'Cost in USD per request, regardless of tokens used.'
+                                  'Cost in RMB per request, regardless of tokens used.'
                                 )}
                               </FieldDescription>
                               <FormMessage />
@@ -644,6 +656,7 @@ export const ModelPricingEditorPanel = forwardRef<
                       <TieredPricingEditor
                         key={editorReloadToken}
                         modelName={watchedValues.name}
+                        usdExchangeRate={usdExchangeRate}
                         billingExpr={billingExpr}
                         requestRuleExpr={requestRuleExpr}
                         onBillingExprChange={setBillingExpr}

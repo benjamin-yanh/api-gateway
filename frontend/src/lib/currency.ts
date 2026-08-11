@@ -465,6 +465,28 @@ export function formatBillingCurrencyFromUSD(
   return formatCurrencyValue(value, merged, meta)
 }
 
+/** Format model prices as RMB regardless of the global quota display mode. */
+export function formatRMBFromUSD(
+  amountUSD: number | null | undefined,
+  usdExchangeRate: number,
+  options?: CurrencyFormatOptions
+): string {
+  if (amountUSD == null || Number.isNaN(amountUSD)) return '-'
+
+  const exchangeRate = usdExchangeRate > 0 ? usdExchangeRate : 1
+  const meta: DisplayMeta = {
+    kind: 'custom',
+    symbol: 'RMB',
+    exchangeRate,
+  }
+
+  return formatCurrencyValue(
+    amountUSD * exchangeRate,
+    mergeOptions(options),
+    meta
+  )
+}
+
 /**
  * Format raw quota values (token units) to display currency.
  *

@@ -1065,6 +1065,186 @@
         ]
       }
     },
+    "/api/native-auth/authorize": {
+      "post": {
+        "summary": "授权本地应用",
+        "deprecated": false,
+        "description": "使用已登录的浏览器 Session 创建有效期 2 分钟的一次性授权码。仅接受带高位端口的 HTTP 回环地址和 PKCE S256。",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "client_id",
+                  "redirect_uri",
+                  "code_challenge",
+                  "code_challenge_method",
+                  "state"
+                ],
+                "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "example": "http://127.0.0.1:49152/callback"
+                  },
+                  "code_challenge": {
+                    "type": "string"
+                  },
+                  "code_challenge_method": {
+                    "type": "string",
+                    "enum": [
+                      "S256"
+                    ]
+                  },
+                  "state": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回包含一次性 code 和原 state 的回环 redirect_url"
+          },
+          "400": {
+            "description": "请求参数或回调地址无效"
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/native-auth/token": {
+      "post": {
+        "summary": "换取本地应用登录凭据",
+        "deprecated": false,
+        "description": "校验一次性授权码、原回调地址和 PKCE verifier，创建独立的本地应用登录 Session，并在 JSON Body 中返回 Access Token 与 Refresh Token。",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "redirect_uri",
+                  "code_verifier"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "type": "string"
+                  },
+                  "code_verifier": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回本地应用 AuthBundle（包含 refresh_token）"
+          },
+          "400": {
+            "description": "授权码无效、过期、已消费或 PKCE 校验失败"
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/native-auth/refresh": {
+      "post": {
+        "summary": "刷新本地应用登录",
+        "deprecated": false,
+        "description": "通过 JSON Body 中的 Refresh Token 轮换本地应用登录凭据，不使用浏览器 Cookie。",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refresh_token"
+                ],
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "返回轮换后的本地应用 AuthBundle"
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/native-auth/revoke": {
+      "post": {
+        "summary": "撤销本地应用登录",
+        "deprecated": false,
+        "description": "使用 JSON Body 中的 Refresh Token 撤销对应的本地应用 Session。",
+        "tags": [
+          "OAuth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refresh_token"
+                ],
+                "properties": {
+                  "refresh_token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "撤销成功"
+          }
+        },
+        "security": []
+      }
+    },
     "/api/oauth/state": {
       "post": {
         "summary": "生成OAuth State",

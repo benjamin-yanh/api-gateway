@@ -94,7 +94,9 @@ function EmptyAboutState() {
             aria-hidden='true'
           />
           <div className='space-y-3'>
-            <h2 className='text-xl font-semibold'>{t('Privacy and security')}</h2>
+            <h2 className='text-xl font-semibold'>
+              {t('Privacy and security')}
+            </h2>
             <p className='text-muted-foreground leading-7'>
               {t(
                 'Requests are forwarded only to the AI provider selected by the configured routing policy. This service does not include third-party analytics, external update checks, GPU deployment, or built-in chat features.'
@@ -109,67 +111,10 @@ function EmptyAboutState() {
         </div>
       </section>
 
-      <footer className='space-y-4 border-t pt-6 text-center text-sm'>
-          <p>
-            {t('New API Project Repository:')}{' '}
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('https://github.com/QuantumNous/new-api')}
-            </a>
-          </p>
-          <p className='text-muted-foreground'>
-            <a
-              href='https://github.com/QuantumNous/new-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('NewAPI')}
-            </a>{' '}
-            © {currentYear}{' '}
-            <a
-              href='https://github.com/QuantumNous'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('QuantumNous')}
-            </a>{' '}
-            {t('| Based on')}{' '}
-            <a
-              href='https://github.com/songquanpeng/one-api'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('One API')}
-            </a>{' '}
-            © 2023{' '}
-            <a
-              href='https://github.com/songquanpeng'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('JustSong')}
-            </a>
-          </p>
-          <p className='text-muted-foreground'>
-            {t('This project must be used in compliance with the')}{' '}
-            <a
-              href='https://github.com/QuantumNous/new-api/blob/main/LICENSE'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('AGPL v3.0 License')}
-            </a>
-            .
-          </p>
+      <footer className='border-t pt-6 text-center text-sm'>
+        <p className='text-muted-foreground'>
+          © {currentYear} {t('NewAPI')}
+        </p>
       </footer>
     </div>
   )

@@ -101,7 +101,7 @@ import {
 } from '@/features/pricing/lib/tier-expr'
 import { cn } from '@/lib/utils'
 
-const PRICE_SUFFIX = '$/1M tokens'
+const PRICE_SUFFIX = '￥/1M tokens'
 const CACHE_PRICE_VARS = BILLING_EXTRA_VARS.filter(
   (variable) => variable.group === 'cache'
 )
@@ -313,12 +313,18 @@ const PRESET_GROUPS: PresetGroup[] = [
   },
 ]
 
-function unitCostToPrice(uc: number | string): number {
-  return Number(uc) || 0
+function unitCostToPrice(
+  unitCost: number | string,
+  usdExchangeRate: number
+): number {
+  return (Number(unitCost) || 0) * usdExchangeRate
 }
 
-function priceToUnitCost(price: number | string): number {
-  return Number(price) || 0
+function priceToUnitCost(
+  price: number | string,
+  usdExchangeRate: number
+): number {
+  return (Number(price) || 0) / usdExchangeRate
 }
 
 function formatTokenHint(n: number | string | null | undefined): string {
@@ -332,8 +338,9 @@ function formatTokenHint(n: number | string | null | undefined): string {
 
 function formatNumberDraft(value: number | string): string {
   if (value === '') return ''
-  if (typeof value === 'number')
+  if (typeof value === 'number') {
     return Number.isFinite(value) ? String(value) : '0'
+  }
   return value
 }
 
@@ -436,12 +443,10 @@ function ConditionRow({ condition, onChange, onRemove }: ConditionRowProps) {
   return (
     <div className='flex items-center gap-2'>
       <Select
-        items={[
-          ...CONDITION_INPUT_OPTIONS.map((option) => ({
-            value: option.value,
-            label: t(option.labelKey),
-          })),
-        ]}
+        items={CONDITION_INPUT_OPTIONS.map((option) => ({
+          value: option.value,
+          label: t(option.labelKey),
+        }))}
         value={condition.var}
         onValueChange={(value) =>
           onChange({ ...condition, var: value as TierConditionInput['var'] })
@@ -542,6 +547,7 @@ type VisualTierCardProps = {
   tier: VisualTier
   index: number
   total: number
+  usdExchangeRate: number
   onChange: (next: VisualTier) => void
   onRemove: () => void
   onAddCondition: () => void
@@ -551,6 +557,7 @@ function VisualTierCard({
   tier,
   index,
   total,
+  usdExchangeRate,
   onChange,
   onRemove,
   onAddCondition,
@@ -587,11 +594,19 @@ function VisualTierCard({
     })
   }
 
-  const inputUnitPrice = unitCostToPrice(tier.input_unit_cost)
-  const outputUnitPrice = unitCostToPrice(tier.output_unit_cost)
+  const inputUnitPrice = unitCostToPrice(tier.input_unit_cost, usdExchangeRate)
+  const outputUnitPrice = unitCostToPrice(
+    tier.output_unit_cost,
+    usdExchangeRate
+  )
   const hasMediaPricing = MEDIA_PRICE_VARS.some((variable) => {
     const fieldKey = variable.tierField as keyof VisualTier
-    return unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0) > 0
+    return (
+      unitCostToPrice(
+        (tier[fieldKey] as number | undefined) ?? 0,
+        usdExchangeRate
+      ) > 0
+    )
   })
   const [mediaOpen, setMediaOpen] = useState(hasMediaPricing)
 
@@ -603,14 +618,19 @@ function VisualTierCard({
     variable: (typeof BILLING_EXTRA_VARS)[number]
   ) => {
     const fieldKey = variable.tierField as keyof VisualTier
-    const value = unitCostToPrice((tier[fieldKey] as number | undefined) ?? 0)
+    const value = unitCostToPrice(
+      (tier[fieldKey] as number | undefined) ?? 0,
+      usdExchangeRate
+    )
 
     return (
       <PriceField
         key={variable.key}
         label={t(variable.label)}
         value={value}
-        onChange={(next) => handlePriceChange(fieldKey, priceToUnitCost(next))}
+        onChange={(next) =>
+          handlePriceChange(fieldKey, priceToUnitCost(next, usdExchangeRate))
+        }
       />
     )
   }
@@ -667,7 +687,7 @@ function VisualTierCard({
         ) : (
           tier.conditions.map((condition, conditionIndex) => (
             <ConditionRow
-              key={conditionIndex}
+              key={JSON.stringify(condition)}
               condition={condition}
               onChange={(next) => handleConditionChange(conditionIndex, next)}
               onRemove={() => handleConditionRemove(conditionIndex)}
@@ -690,14 +710,20 @@ function VisualTierCard({
               label={t('Input price')}
               value={inputUnitPrice}
               onChange={(value) =>
-                handlePriceChange('input_unit_cost', priceToUnitCost(value))
+                handlePriceChange(
+                  'input_unit_cost',
+                  priceToUnitCost(value, usdExchangeRate)
+                )
               }
             />
             <PriceField
               label={t('Output price')}
               value={outputUnitPrice}
               onChange={(value) =>
-                handlePriceChange('output_unit_cost', priceToUnitCost(value))
+                handlePriceChange(
+                  'output_unit_cost',
+                  priceToUnitCost(value, usdExchangeRate)
+                )
               }
             />
           </div>
@@ -771,10 +797,15 @@ function VisualTierCard({
 
 type VisualEditorProps = {
   visualConfig: VisualConfig | null
+  usdExchangeRate: number
   onChange: (next: VisualConfig) => void
 }
 
-function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
+function VisualEditor({
+  visualConfig,
+  usdExchangeRate,
+  onChange,
+}: VisualEditorProps) {
   const { t } = useTranslation()
   const config = useMemo(
     () => normalizeVisualConfig(visualConfig),
@@ -849,10 +880,11 @@ function VisualEditor({ visualConfig, onChange }: VisualEditorProps) {
       </p>
       {config.tiers.map((tier, index) => (
         <VisualTierCard
-          key={index}
+          key={`${tier.label}-${JSON.stringify(tier.conditions)}`}
           tier={tier}
           index={index}
           total={config.tiers.length}
+          usdExchangeRate={usdExchangeRate}
           onChange={(next) => handleTierChange(index, next)}
           onRemove={() => handleRemoveTier(index)}
           onAddCondition={() => handleAddCondition(index)}
@@ -967,12 +999,12 @@ function RuleConditionRow({
         return timeFunc
     }
   }
-  const sourceLabel =
-    condition.source === SOURCE_PARAM
-      ? t('Body param')
-      : condition.source === SOURCE_HEADER
-        ? t('Header')
-        : t('Time')
+  let sourceLabel = t('Time')
+  if (condition.source === SOURCE_PARAM) {
+    sourceLabel = t('Body param')
+  } else if (condition.source === SOURCE_HEADER) {
+    sourceLabel = t('Header')
+  }
 
   const handleSourceChange = (source: string) => {
     if (source === SOURCE_TIME) {
@@ -992,12 +1024,10 @@ function RuleConditionRow({
   const renderTimeCondition = (timeCond: TimeCondition) => (
     <>
       <Select
-        items={[
-          ...TIME_FUNCS.map((fn) => ({
-            value: fn,
-            label: getTimeFuncLabel(fn),
-          })),
-        ]}
+        items={TIME_FUNCS.map((fn) => ({
+          value: fn,
+          label: getTimeFuncLabel(fn),
+        }))}
         value={timeCond.timeFunc}
         onValueChange={(value) =>
           onChange({ ...timeCond, timeFunc: value as TimeFunc })
@@ -1017,12 +1047,10 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={[
-          ...COMMON_TIMEZONES.map((tz) => ({
-            value: tz.value,
-            label: tz.label,
-          })),
-        ]}
+        items={COMMON_TIMEZONES.map((tz) => ({
+          value: tz.value,
+          label: tz.label,
+        }))}
         value={timeCond.timezone}
         onValueChange={(value) =>
           value !== null && onChange({ ...timeCond, timezone: value })
@@ -1045,12 +1073,10 @@ function RuleConditionRow({
         </SelectContent>
       </Select>
       <Select
-        items={[
-          ...matchOptions.map((option) => ({
-            value: option.value,
-            label: getMatchLabel(option.value),
-          })),
-        ]}
+        items={matchOptions.map((option) => ({
+          value: option.value,
+          label: getMatchLabel(option.value),
+        }))}
         value={timeCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
@@ -1111,12 +1137,10 @@ function RuleConditionRow({
         className='w-44'
       />
       <Select
-        items={[
-          ...matchOptions.map((option) => ({
-            value: option.value,
-            label: getMatchLabel(option.value),
-          })),
-        ]}
+        items={matchOptions.map((option) => ({
+          value: option.value,
+          label: getMatchLabel(option.value),
+        }))}
         value={phCond.mode}
         onValueChange={(v) => v !== null && handleModeChange(v)}
       >
@@ -1241,7 +1265,7 @@ function RuleGroupCard({
       <div className='space-y-2'>
         {group.conditions.map((condition, conditionIndex) => (
           <RuleConditionRow
-            key={conditionIndex}
+            key={JSON.stringify(condition)}
             condition={condition}
             onChange={(next) => handleConditionChange(conditionIndex, next)}
             onRemove={() =>
@@ -1513,7 +1537,7 @@ Important: len is NOT affected by auto-exclusion. Tier conditions should use len
 
 ### Price Coefficients
 
-Numbers in the expression are $/1M tokens prices. For example, p * 2.5 means input $2.50/1M tokens.
+Numbers in the expression are USD/1M token prices. For example, p * 2.5 means input USD 2.50/1M tokens.
 
 ## Expression Examples
 
@@ -1547,7 +1571,7 @@ len <= 128000
 2. Use English tier names, e.g. "base", "standard", "long_context"
 3. Use len for tier conditions (not p), supports <, <=, >, >=
 4. Multi-tier uses nested ternary: cond1 ? tier(...) : (cond2 ? tier(...) : tier(...))
-5. Price coefficients are the provider's official $/1M tokens prices
+5. Price coefficients are the provider's official USD/1M token prices
 6. If cache/image/audio don't need separate pricing, omit those variables; their tokens are included in p/c automatically
 
 Please generate a billing expression based on the model information and pricing requirements provided.`
@@ -1562,7 +1586,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
   const prompt = useMemo(() => {
     if (modelName) {
-      return LLM_PROMPT_TEMPLATE + `\n\nCurrent model: ${modelName}`
+      return `${LLM_PROMPT_TEMPLATE}\n\nCurrent model: ${modelName}`
     }
     return LLM_PROMPT_TEMPLATE
   }, [modelName])
@@ -1623,6 +1647,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
 
 export type TieredPricingEditorProps = {
   modelName?: string
+  usdExchangeRate: number
   billingExpr: string
   requestRuleExpr: string
   onBillingExprChange: (next: string) => void
@@ -1633,6 +1658,7 @@ type EditorMode = 'visual' | 'raw'
 
 export const TieredPricingEditor = memo(function TieredPricingEditor({
   modelName,
+  usdExchangeRate,
   billingExpr: currentExpr,
   requestRuleExpr: currentRequestRuleExpr,
   onBillingExprChange,
@@ -1806,6 +1832,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
         {editorMode === 'visual' ? (
           <VisualEditor
             visualConfig={visualConfig}
+            usdExchangeRate={usdExchangeRate}
             onChange={handleVisualChange}
           />
         ) : (
@@ -1837,7 +1864,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
               <>
                 {requestRuleGroups.map((group, groupIndex) => (
                   <RuleGroupCard
-                    key={groupIndex}
+                    key={JSON.stringify(group)}
                     group={group}
                     index={groupIndex}
                     onChange={(next) => {
