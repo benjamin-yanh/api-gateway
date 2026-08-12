@@ -48,9 +48,9 @@ export interface SystemConfig {
 
 export const DEFAULT_CURRENCY_CONFIG: CurrencyConfig = {
   displayInCurrency: true,
-  quotaDisplayType: 'USD',
+  quotaDisplayType: 'CNY',
   quotaPerUnit: 500000,
-  usdExchangeRate: 1,
+  usdExchangeRate: 7.3,
   customCurrencySymbol: '¤',
   customCurrencyExchangeRate: 1,
 }
