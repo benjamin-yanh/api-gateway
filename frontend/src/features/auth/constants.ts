@@ -29,8 +29,12 @@ export const loginFormSchema = z.object({
 
 export const registerFormSchema = z
   .object({
-    username: z.string().min(1, 'Please enter your username'),
-    email: z.string().optional(),
+    username: z
+      .string()
+      .trim()
+      .min(1, 'Please enter your email')
+      .max(128, 'Email must be at most 128 characters long')
+      .email('Please enter a valid email address'),
     password: z
       .string()
       .min(1, 'Please enter your password')
@@ -59,6 +63,7 @@ export const otpFormSchema = z.object({
 
 export const PASSWORD_MIN_LENGTH = 8
 export const PASSWORD_MAX_LENGTH = 20
+export const USERNAME_MAX_LENGTH = 128
 export const OTP_LENGTH = 6
 export const BACKUP_CODE_LENGTH = 9 // XXXX-XXXX format
 export const BACKUP_CODE_REGEX = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/i

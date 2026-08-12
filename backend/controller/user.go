@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -218,14 +219,22 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	user.Username = strings.TrimSpace(user.Username)
-	user.Email = model.NormalizeEmail(user.Email)
-	if user.Username == "" {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+	// Password registration uses one identity: the normalized email address is
+	// stored as both username and email, so users never have to invent a second
+	// account name or remember which value they used to sign in.
+	user.Username = model.NormalizeEmail(user.Username)
+	user.Email = user.Username
+	if utf8.RuneCountInString(user.Username) > model.UserNameMaxLength {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameTooLong)
 		return
 	}
-	if err := common.Validate.Struct(&user); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+	if err := common.Validate.Var(user.Username, "required,email"); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailInvalid)
+		return
+	}
+	passwordLength := utf8.RuneCountInString(user.Password)
+	if passwordLength < 8 || passwordLength > 20 {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordLengthInvalid)
 		return
 	}
 	if common.EmailVerificationEnabled {
@@ -246,11 +255,7 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
-	emailForExistCheck := ""
-	if common.EmailVerificationEnabled {
-		emailForExistCheck = user.Email
-	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
+	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
@@ -266,11 +271,9 @@ func Register(c *gin.Context) {
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
+		Email:       user.Email,
 		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
-	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {

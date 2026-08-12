@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -91,13 +92,12 @@ export function SignUpForm({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
       username: '',
-      email: '',
       password: '',
       confirmPassword: '',
     },
   })
 
-  const emailValue = form.watch('email')
+  const emailValue = form.watch('username')
   const emailVerificationRequired = !!status?.email_verification
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -146,10 +146,6 @@ export function SignUpForm({
 
     // Validate email verification if required
     if (emailVerificationRequired) {
-      if (!data.email) {
-        toast.error(t('Please enter your email'))
-        return
-      }
       if (!verificationCode) {
         toast.error(t('Please enter the verification code'))
         return
@@ -163,7 +159,7 @@ export function SignUpForm({
       const res = await register({
         username: data.username,
         password: data.password,
-        email: data.email || undefined,
+        email: data.username,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
@@ -247,16 +243,27 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {/* Username Field */}
+        {/* The email address is also the account username. */}
         <FormField
           control={form.control}
           name='username'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('Username')}</FormLabel>
+              <FormLabel>{t('Email')}</FormLabel>
               <FormControl>
-                <Input placeholder={t('Enter your username')} {...field} />
+                <Input
+                  placeholder={t('name@example.com')}
+                  type='email'
+                  autoComplete='email'
+                  maxLength={128}
+                  {...field}
+                />
               </FormControl>
+              <FormDescription>
+                {t(
+                  'Your email is used as the username and can contain up to 128 characters'
+                )}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -298,27 +305,6 @@ export function SignUpForm({
         {/* Email Verification Section */}
         {emailVerificationRequired && (
           <>
-            {/* Email Field */}
-            <FormField
-              control={form.control}
-              name='email'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    {t('Email (required for verification)')}
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             {/* Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
