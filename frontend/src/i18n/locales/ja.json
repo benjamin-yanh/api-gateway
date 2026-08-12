@@ -1474,6 +1474,8 @@
     "Downgrade to pre-purchase group": "購入前のグループにダウングレード",
     "Downgrade to this group after the subscription expires": "サブスクリプションの有効期限が切れた後、このグループにダウングレードします",
     "Download": "ダウンロード",
+    "Download client: {{filename}}": "クライアントをダウンロード：{{filename}}",
+    "Download macOS client": "macOS クライアントをダウンロード",
     "Drag {{group}} to reorder": "{{group}} をドラッグして並べ替え",
     "Draw": "描画",
     "Drawing": "画像生成",
