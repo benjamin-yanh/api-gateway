@@ -44,7 +44,7 @@ func SetAnthropicDataRouter(router *gin.Engine) {
 	}
 
 	models := router.Group("/anthropic/v1/models")
-	models.Use(middleware.RouteTag("relay"), stripPrefix, middleware.TokenAuth())
+	models.Use(middleware.RouteTag("relay"), stripPrefix)
 	models.GET("", func(c *gin.Context) {
 		controller.ListModels(c, constant.ChannelTypeAnthropic)
 	})
