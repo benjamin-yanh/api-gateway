@@ -236,6 +236,7 @@ func main() {
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
 	server.Use(middleware.I18n())
+	server.Use(middleware.AccessLog())
 	middleware.SetUpLogger(server)
 	server.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": true, "role": role})

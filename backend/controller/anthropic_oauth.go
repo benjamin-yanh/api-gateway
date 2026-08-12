@@ -20,6 +20,105 @@ import (
 
 const anthropicOAuthScopes = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 
+type anthropicPasswordLoginRequest struct {
+	Email    string `json:"email"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type anthropicLoginAPIKey struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	APIKey string `json:"api_key"`
+	Status int    `json:"status"`
+}
+
+// AnthropicPasswordLogin verifies a password and exports only credentials
+// owned by that user. Accounts protected by 2FA must use the normal login flow
+// so this compatibility endpoint cannot bypass their second factor.
+func AnthropicPasswordLogin(c *gin.Context) {
+	setAuthNoStore(c)
+	if !common.PasswordLoginEnabled {
+		writeAnthropicOAuthError(c, http.StatusForbidden, "password_login_disabled", "Password login is disabled")
+		return
+	}
+
+	var request anthropicPasswordLoginRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		writeAnthropicOAuthError(c, http.StatusBadRequest, "invalid_request", "username or email and password are required")
+		return
+	}
+	loginIdentifier := strings.TrimSpace(request.Username)
+	if email := model.NormalizeEmail(request.Email); email != "" {
+		loginIdentifier = email
+	}
+	if loginIdentifier == "" || request.Password == "" {
+		writeAnthropicOAuthError(c, http.StatusBadRequest, "invalid_request", "username or email and password are required")
+		return
+	}
+
+	user := model.User{Username: loginIdentifier, Password: request.Password}
+	if err := user.ValidateAndFill(); err != nil {
+		if errors.Is(err, model.ErrDatabase) {
+			common.SysLog(fmt.Sprintf("Anthropic password login database error: %v", err))
+			writeAnthropicOAuthError(c, http.StatusInternalServerError, "server_error", "Unable to complete login")
+			return
+		}
+		writeAnthropicOAuthError(c, http.StatusUnauthorized, "invalid_credentials", "Invalid username or password")
+		return
+	}
+
+	twoFAEnabled, err := model.IsTwoFAEnabled(user.Id)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("Anthropic password login failed to load 2FA status for user %d: %v", user.Id, err))
+		writeAnthropicOAuthError(c, http.StatusInternalServerError, "server_error", "Unable to complete login")
+		return
+	}
+	if twoFAEnabled {
+		writeAnthropicOAuthError(c, http.StatusForbidden, "two_factor_required", "Use the standard login flow for accounts protected by 2FA")
+		return
+	}
+
+	count, err := model.CountUserTokens(user.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tokens, err := model.GetAllUserTokens(user.Id, 0, int(count))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	apiKeys := make([]anthropicLoginAPIKey, 0, len(tokens))
+	for _, token := range tokens {
+		apiKeys = append(apiKeys, anthropicLoginAPIKey{
+			ID:     token.Id,
+			Name:   token.Name,
+			APIKey: "sk-" + token.GetFullKey(),
+			Status: token.Status,
+		})
+	}
+
+	model.UpdateUserLastLoginAt(user.Id)
+	model.RecordLoginLog(
+		user.Id,
+		user.Username,
+		"Logged in successfully via anthropic_password",
+		c.ClientIP(),
+		"login",
+		map[string]interface{}{"method": "anthropic_password"},
+		map[string]interface{}{
+			"login_method": "anthropic_password",
+			"user_agent":   c.Request.UserAgent(),
+		},
+	)
+	c.JSON(http.StatusOK, gin.H{
+		"access_token": user.GetAccessToken(),
+		"api_keys":     apiKeys,
+		"token_type":   "Bearer",
+	})
+}
+
 // anthropicOAuthTokenRequest 同时覆盖授权码与刷新令牌两种 grant。
 // Claude Desktop 使用 JSON，请求表单的支持用于兼容其他标准 OAuth 客户端。
 type anthropicOAuthTokenRequest struct {

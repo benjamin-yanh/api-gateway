@@ -20,6 +20,7 @@ func SetAnthropicControlRouter(router *gin.Engine) {
 	group.Use(middleware.BodyStorageCleanup())
 	group.Use(middleware.GlobalAPIRateLimit())
 	{
+		group.POST("/auth/login", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicPasswordLogin)
 		group.GET("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AnthropicOAuthAuthorize)
 		group.GET("/oauth/code/callback", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AnthropicOAuthCodeCallback)
 		group.POST("/v1/oauth/token", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicOAuthToken)
