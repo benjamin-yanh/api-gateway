@@ -46,6 +46,11 @@ describe('model pricing RMB editor', () => {
     assert.equal(initial.prices.completion, '42')
   })
 
+  test('removes floating-point drift from converted RMB prices', () => {
+    assert.equal(priceFromUSD('9.999999999999571', 7), '70')
+    assert.equal(priceFromUSD('0.000000001', 1), '1e-9')
+  })
+
   test('uses the full-width RMB symbol in the preview', () => {
     const rows = buildPreviewRows(
       { name: 'test-model' },

@@ -11,6 +11,7 @@ import (
 )
 
 const retiredThemeOptionKey = "theme.frontend"
+const legacyDefaultSystemName = "New API"
 
 type legacyOptionTransform func(string) (string, error)
 
@@ -23,6 +24,9 @@ func MigrateRetiredFrontendOptions() error {
 	}
 
 	var migrationErrors []error
+	if err := migrateDefaultSystemName(); err != nil {
+		migrationErrors = append(migrationErrors, fmt.Errorf("migrate default system name: %w", err))
+	}
 	if err := normalizeRetiredThemeOption(); err != nil {
 		migrationErrors = append(migrationErrors, fmt.Errorf("normalize %s: %w", retiredThemeOptionKey, err))
 	}
@@ -45,6 +49,14 @@ func MigrateRetiredFrontendOptions() error {
 		migrationErrors = append(migrationErrors, err)
 	}
 	return errors.Join(migrationErrors...)
+}
+
+// migrateDefaultSystemName updates installations that still use the former
+// built-in brand while preserving other administrator-defined names.
+func migrateDefaultSystemName() error {
+	return DB.Model(&Option{}).
+		Where("key = ? AND value = ?", "SystemName", legacyDefaultSystemName).
+		Update("value", common.DefaultSystemName).Error
 }
 
 func normalizeRetiredThemeOption() error {

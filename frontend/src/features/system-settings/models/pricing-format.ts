@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 const DISPLAY_DECIMALS = 12
 const SNAP_DECIMALS = 8
 const SNAP_EPSILON = 1e-12
+const SNAP_ULP_MULTIPLIER = 256
 
 function toNumberOrNull(value: unknown): number | null {
   if (
@@ -40,7 +41,13 @@ function roundToDecimals(value: number, decimals: number): number {
 }
 
 function snapFloatDrift(value: number): number {
-  const tolerance = Math.max(SNAP_EPSILON, Math.abs(value) * Number.EPSILON * 8)
+  // Currency conversion can amplify an already rounded stored decimal by
+  // hundreds of ULPs. Use a relative tolerance so values near 70 normalize to
+  // 70 without discarding meaningful precision from very small prices.
+  const tolerance = Math.max(
+    SNAP_EPSILON,
+    Math.abs(value) * Number.EPSILON * SNAP_ULP_MULTIPLIER
+  )
 
   for (let decimals = 0; decimals <= SNAP_DECIMALS; decimals += 1) {
     const rounded = roundToDecimals(value, decimals)

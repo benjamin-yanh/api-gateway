@@ -31,6 +31,10 @@ import { toast } from 'sonner'
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
 import '@/lib/dayjs'
+import {
+  DEFAULT_SYSTEM_NAME,
+  LEGACY_DEFAULT_SYSTEM_NAME,
+} from '@/lib/constants'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -115,7 +119,9 @@ if (!rootElement) {
 // Set document.title from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return
+    }
     const apply = (name: string) => {
       document.title = name
       const metaTitle = document.querySelector(
@@ -128,7 +134,13 @@ if (!rootElement) {
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
-        if (s?.system_name) apply(s.system_name)
+        if (s?.system_name) {
+          apply(
+            s.system_name === LEGACY_DEFAULT_SYSTEM_NAME
+              ? DEFAULT_SYSTEM_NAME
+              : s.system_name
+          )
+        }
       }
     } catch {
       /* empty */

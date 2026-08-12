@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 interface FooterLink {
@@ -122,12 +123,16 @@ function LegalLinks(props: { leadingSeparator?: boolean }) {
 
 // inline=true returns just the inner span for composition in a parent flex
 // row. inline=false wraps in a centered/right-aligned div (default).
-function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
+function ProjectAttribution(props: {
+  currentYear: number
+  name: string
+  inline?: boolean
+}) {
   const { t } = useTranslation()
   const content = (
     <span className='text-muted-foreground/45'>
       &copy; {props.currentYear}{' '}
-      <span className='text-foreground/70 font-medium'>{t('New API')}</span>.{' '}
+      <span className='text-foreground/70 font-medium'>{props.name}</span>.{' '}
       {t(NEW_API_FOOTER_ATTRIBUTION_KEY)}
     </span>
   )
@@ -145,7 +150,7 @@ export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const { systemName, footerHtml, demoSiteEnabled } = useSystemConfig()
 
-  const displayName = systemName || props.name || 'New API'
+  const displayName = systemName || props.name || DEFAULT_SYSTEM_NAME
   const isDemoSiteMode = Boolean(demoSiteEnabled)
   const currentYear = new Date().getFullYear()
 
@@ -207,7 +212,11 @@ export function Footer(props: FooterProps) {
             />
             <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
               <LegalLinks />
-              <ProjectAttribution currentYear={currentYear} inline />
+              <ProjectAttribution
+                currentYear={currentYear}
+                name={displayName}
+                inline
+              />
             </div>
           </div>
         </div>
@@ -264,7 +273,7 @@ export function Footer(props: FooterProps) {
             </span>
             <LegalLinks leadingSeparator />
           </div>
-          <ProjectAttribution currentYear={currentYear} />
+          <ProjectAttribution currentYear={currentYear} name={displayName} />
         </div>
       </div>
     </footer>

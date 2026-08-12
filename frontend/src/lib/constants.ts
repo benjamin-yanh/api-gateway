@@ -21,7 +21,8 @@ For commercial licensing, please contact support@quantumnous.com
  */
 
 // System Configuration Defaults
-export const DEFAULT_SYSTEM_NAME = 'New API'
+export const DEFAULT_SYSTEM_NAME = '纪同学'
+export const LEGACY_DEFAULT_SYSTEM_NAME = 'New API'
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {

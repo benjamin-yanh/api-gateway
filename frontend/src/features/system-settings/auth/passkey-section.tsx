@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
 
 import {
   SettingsForm,
@@ -225,7 +226,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormLabel>{t('Relying Party Display Name')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('e.g. New API Console')}
+                    placeholder={`${DEFAULT_SYSTEM_NAME} Console`}
                     value={field.value ?? ''}
                     onChange={(event) => field.onChange(event.target.value)}
                     name={field.name}
