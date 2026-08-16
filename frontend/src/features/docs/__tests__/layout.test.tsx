@@ -66,8 +66,8 @@ test('renders separate section navigation and on-page navigation landmarks', asy
   await act(async () => {
     root.render(
       <I18nextProvider i18n={i18n}>
-        <DocsSidebar search='' />
-        <DocsTableOfContents />
+        <DocsSidebar search='' activeSection='overview' />
+        <DocsTableOfContents activeSection='overview' />
       </I18nextProvider>
     )
   })
@@ -80,9 +80,14 @@ test('renders separate section navigation and on-page navigation landmarks', asy
   )
   assert.equal(sectionLandmarks.length, 2)
   assert.equal(onPageLandmarks.length, 1)
-  assert.equal(sectionLandmarks.item(0).querySelectorAll('a').length, 5)
-  assert.equal(sectionLandmarks.item(1).querySelectorAll('a').length, 5)
-  assert.equal(onPageLandmarks.item(0).querySelectorAll('a').length, 4)
+  assert.equal(sectionLandmarks.item(0).querySelectorAll('a').length, 6)
+  assert.equal(sectionLandmarks.item(1).querySelectorAll('a').length, 6)
+  assert.equal(onPageLandmarks.item(0).querySelectorAll('a').length, 5)
+  assert.equal(
+    sectionLandmarks.item(1).querySelector('a[aria-current="location"]')
+      ?.getAttribute('href'),
+    '#overview'
+  )
 
   await act(async () => root.unmount())
   container.remove()
@@ -96,8 +101,8 @@ test('filters documentation section links without hiding the article outline', a
   await act(async () => {
     root.render(
       <I18nextProvider i18n={i18n}>
-        <DocsSidebar search='routing' />
-        <DocsTableOfContents />
+        <DocsSidebar search='routing' activeSection='routing' />
+        <DocsTableOfContents activeSection='routing' />
       </I18nextProvider>
     )
   })
@@ -112,7 +117,14 @@ test('filters documentation section links without hiding the article outline', a
   }
   assert.equal(
     container.querySelectorAll('nav[aria-label="On this page"] a').length,
-    4
+    5
+  )
+
+  assert.equal(
+    container
+      .querySelector('nav[aria-label="On this page"] a[aria-current="location"]')
+      ?.getAttribute('href'),
+    '#routing'
   )
 
   await act(async () => root.unmount())

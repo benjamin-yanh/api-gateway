@@ -13,29 +13,24 @@ import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { Input } from '@/components/ui/input'
-import { useStatus } from '@/hooks/use-status'
 
 import { DocsArticle } from './docs-article'
 import { DocsSidebar, DocsTableOfContents } from './docs-navigation'
+import { useActiveDocSection } from './use-active-doc-section'
 
 export function Docs() {
   const { t } = useTranslation()
-  const { status } = useStatus()
   const [search, setSearch] = useState('')
-  const configuredAddress = String(status?.server_address ?? '').replace(
-    /\/$/,
-    ''
-  )
+  const activeSection = useActiveDocSection()
   const baseUrl =
-    configuredAddress ||
-    (typeof window === 'undefined'
-      ? 'https://your-domain.example'
-      : window.location.origin)
+    typeof window === 'undefined'
+      ? 'http://101.132.177.78'
+      : window.location.origin.replace(/\/$/, '')
 
   return (
     <PublicLayout showMainContainer={false}>
       <div className='mx-auto grid w-full max-w-[90rem] gap-8 px-4 pt-24 pb-20 sm:px-6 xl:grid-cols-[14rem_minmax(0,48rem)_12rem] xl:gap-9'>
-        <DocsSidebar search={search} />
+        <DocsSidebar search={search} activeSection={activeSection} />
 
         <main className='min-w-0'>
           <div className='relative mb-8'>
@@ -57,7 +52,7 @@ export function Docs() {
           <DocsArticle baseUrl={baseUrl} />
         </main>
 
-        <DocsTableOfContents />
+        <DocsTableOfContents activeSection={activeSection} />
       </div>
     </PublicLayout>
   )

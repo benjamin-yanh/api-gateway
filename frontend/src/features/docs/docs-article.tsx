@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { ClientDownloadButton } from '@/features/home/components/client-download-button'
 
 import { CodeSample } from './code-sample'
 import { ModelCatalog } from './model-catalog'
@@ -165,6 +166,23 @@ export function DocsArticle(props: DocsArticleProps) {
             'Replace sk-your-key with your own API key and never expose it in client-side code.'
           )}
         </p>
+        <p className='bg-muted/40 rounded-lg border p-4 text-sm leading-6'>
+          {t(
+            'The API address shown here follows the address you used to open this site, including its currently accessible IP address.'
+          )}
+        </p>
+      </section>
+
+      <section id='desktop-clients' className={sectionClassName}>
+        <div>
+          <h2 className='text-2xl font-semibold'>{t('Desktop clients')}</h2>
+          <p className='text-muted-foreground mt-2 leading-7'>
+            {t(
+              'Download our macOS desktop clients for Claude and ChatGPT, then use the Base URL and API key above to connect.'
+            )}
+          </p>
+        </div>
+        <ClientDownloadButton />
       </section>
 
       <section id='models' className={sectionClassName}>

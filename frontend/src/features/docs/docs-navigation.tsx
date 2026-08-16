@@ -14,6 +14,11 @@ import { cn } from '@/lib/utils'
 
 type DocsSidebarProps = {
   search: string
+  activeSection: string
+}
+
+type DocsTableOfContentsProps = {
+  activeSection: string
 }
 
 const navigationGroups = [
@@ -22,6 +27,7 @@ const navigationGroups = [
     links: [
       { href: '#overview', label: 'Overview' },
       { href: '#getting-started', label: 'Getting started' },
+      { href: '#desktop-clients', label: 'Desktop clients' },
       { href: '#models', label: 'Available models' },
       { href: '#protocols', label: 'Protocol endpoints' },
       { href: '#routing', label: 'Routing rules' },
@@ -31,6 +37,7 @@ const navigationGroups = [
 
 const tableOfContents = [
   { href: '#getting-started', label: 'Base URL and authentication' },
+  { href: '#desktop-clients', label: 'Desktop clients' },
   { href: '#models', label: 'Available models' },
   { href: '#protocols', label: 'Protocol endpoints' },
   { href: '#routing', label: 'Routing rules' },
@@ -66,7 +73,16 @@ export function DocsSidebar(props: DocsSidebarProps) {
                   <li key={link.href}>
                     <a
                       href={link.href}
-                      className='text-muted-foreground hover:text-foreground block py-1.5 text-sm'
+                      aria-current={
+                        props.activeSection === link.href.slice(1)
+                          ? 'location'
+                          : undefined
+                      }
+                      className={cn(
+                        'text-muted-foreground hover:text-foreground block py-1.5 text-sm',
+                        props.activeSection === link.href.slice(1) &&
+                          'text-primary font-medium'
+                      )}
                     >
                       {t(link.label)}
                     </a>
@@ -103,9 +119,14 @@ export function DocsSidebar(props: DocsSidebarProps) {
                   <li key={link.href}>
                     <a
                       href={link.href}
+                      aria-current={
+                        props.activeSection === link.href.slice(1)
+                          ? 'location'
+                          : undefined
+                      }
                       className={cn(
                         'text-muted-foreground hover:bg-muted hover:text-foreground block rounded-md px-3 py-2 text-sm transition-colors',
-                        link.href === '#overview' &&
+                        props.activeSection === link.href.slice(1) &&
                           'bg-primary/8 text-primary font-medium'
                       )}
                     >
@@ -128,7 +149,7 @@ export function DocsSidebar(props: DocsSidebarProps) {
   )
 }
 
-export function DocsTableOfContents() {
+export function DocsTableOfContents(props: DocsTableOfContentsProps) {
   const { t } = useTranslation()
 
   return (
@@ -143,7 +164,16 @@ export function DocsTableOfContents() {
             <li key={item.href}>
               <a
                 href={item.href}
-                className='text-muted-foreground hover:text-primary block text-sm leading-5 transition-colors'
+                aria-current={
+                  props.activeSection === item.href.slice(1)
+                    ? 'location'
+                    : undefined
+                }
+                className={cn(
+                  'text-muted-foreground hover:text-primary block text-sm leading-5 transition-colors',
+                  props.activeSection === item.href.slice(1) &&
+                    'text-primary font-medium'
+                )}
               >
                 {t(item.label)}
               </a>
