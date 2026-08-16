@@ -258,6 +258,13 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 		userModelNames = append(userModelNames, modelName)
 	}
+	if c.Request.URL.Path == "/v1/models" {
+		clientFamily := detectClientModelFamily(c, c.Query("client"))
+		if modelType == constant.ChannelTypeAnthropic {
+			clientFamily = clientModelFamilyClaude
+		}
+		userModelNames = filterModelsForClient(userModelNames, clientFamily)
+	}
 
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {

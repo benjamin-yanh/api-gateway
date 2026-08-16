@@ -111,6 +111,12 @@ installed.
 ### Data-plane model APIs
 
 - `GET /v1/models` is public model discovery and must not require `x-api-key`.
+- `GET /v1/models` filters its response with the same client detection used by
+  password login: Claude/Anthropic clients receive Claude-family models; Codex,
+  ChatGPT, and OpenAI clients receive OpenAI-family models; unidentified clients
+  receive all models available to their group and token. `client` may be declared
+  as a query parameter in addition to the supported client headers. Anthropic
+  protocol requests and `/anthropic/v1/models` always receive Claude-family models.
 - Anthropic-prefixed data-plane endpoints are:
 
   | Method | Endpoint | Authentication |

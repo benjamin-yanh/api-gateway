@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -338,6 +339,102 @@ func TestListModelsAnonymousUsesDefaultGroup(t *testing.T) {
 	ids := decodeListModelsResponse(t, recorder)
 	require.Contains(t, ids, "zz-public-model")
 	require.NotContains(t, ids, "zz-private-model")
+}
+
+func TestListModelsFiltersByClientSource(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	allModels := []string{
+		"anthropic/claude-opus-4-1",
+		"claude-sonnet-4-5",
+		"deepseek-chat",
+		"gemini-3-pro",
+		"gpt-5.2-codex",
+		"openai/o3",
+	}
+	abilities := make([]model.Ability, 0, len(allModels))
+	for _, modelName := range allModels {
+		abilities = append(abilities, model.Ability{
+			Group: "default", Model: modelName, ChannelId: 1, Enabled: true,
+		})
+	}
+	require.NoError(t, db.Create(&abilities).Error)
+
+	tests := []struct {
+		name       string
+		target     string
+		headers    map[string]string
+		wantModels []string
+	}{
+		{
+			name:       "Claude user agent",
+			target:     "/v1/models",
+			headers:    map[string]string{"User-Agent": "claude-cli/1.0"},
+			wantModels: []string{"anthropic/claude-opus-4-1", "claude-sonnet-4-5"},
+		},
+		{
+			name:       "Codex originator",
+			target:     "/v1/models",
+			headers:    map[string]string{"Originator": "codex_cli_rs"},
+			wantModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:       "ChatGPT user agent",
+			target:     "/v1/models",
+			headers:    map[string]string{"User-Agent": "ChatGPT-Desktop/2.0"},
+			wantModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:       "declared OpenAI client",
+			target:     "/v1/models?client=OpenAI%20Desktop",
+			wantModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:       "unknown client",
+			target:     "/v1/models",
+			headers:    map[string]string{"User-Agent": "custom-client/1.0"},
+			wantModels: allModels,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, tt.target, nil)
+			for key, value := range tt.headers {
+				ctx.Request.Header.Set(key, value)
+			}
+
+			ListModels(ctx, constant.ChannelTypeOpenAI)
+
+			ids := decodeListModelsResponse(t, recorder)
+			assert.ElementsMatch(t, tt.wantModels, lo.Keys(ids))
+		})
+	}
+}
+
+func TestListModelsAnthropicProtocolFiltersClaudeModels(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "claude-sonnet-4-5", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gpt-5.2-codex", ChannelId: 1, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+
+	ListModels(ctx, constant.ChannelTypeAnthropic)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload struct {
+		Data []dto.AnthropicModel `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload.Data, 1)
+	assert.Equal(t, "claude-sonnet-4-5", payload.Data[0].ID)
 }
 
 func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -33,67 +32,6 @@ type anthropicLoginAPIKey struct {
 	Name   string `json:"name"`
 	APIKey string `json:"api_key"`
 	Status int    `json:"status"`
-}
-
-type authClientFamily string
-
-const (
-	authClientFamilyAll    authClientFamily = "all"
-	authClientFamilyClaude authClientFamily = "claude"
-	authClientFamilyOpenAI authClientFamily = "openai"
-)
-
-func detectAuthClientFamily(c *gin.Context, declaredClient string) authClientFamily {
-	if strings.HasPrefix(c.Request.URL.Path, "/anthropic/") {
-		return authClientFamilyClaude
-	}
-	fingerprint := strings.ToLower(strings.Join([]string{
-		declaredClient,
-		c.GetHeader("Originator"),
-		c.GetHeader("X-Client-Name"),
-		c.GetHeader("X-Client"),
-		c.GetHeader("X-App"),
-		c.Request.UserAgent(),
-	}, " "))
-	if strings.Contains(fingerprint, "claude") || strings.Contains(fingerprint, "anthropic") {
-		return authClientFamilyClaude
-	}
-	if strings.Contains(fingerprint, "codex") || strings.Contains(fingerprint, "chatgpt") || strings.Contains(fingerprint, "openai") {
-		return authClientFamilyOpenAI
-	}
-	return authClientFamilyAll
-}
-
-func filterAuthModels(models []string, family authClientFamily) []string {
-	filtered := make([]string, 0, len(models))
-	for _, modelName := range models {
-		normalized := strings.ToLower(strings.TrimSpace(modelName))
-		baseName := normalized
-		if slash := strings.LastIndex(baseName, "/"); slash >= 0 {
-			baseName = baseName[slash+1:]
-		}
-
-		include := family == authClientFamilyAll
-		switch family {
-		case authClientFamilyClaude:
-			include = strings.Contains(normalized, "anthropic/") ||
-				strings.Contains(baseName, "claude") || strings.Contains(baseName, "sonnet") ||
-				strings.Contains(baseName, "opus") || strings.Contains(baseName, "haiku")
-		case authClientFamilyOpenAI:
-			include = strings.Contains(baseName, "gpt") ||
-				strings.Contains(baseName, "chatgpt") || strings.Contains(baseName, "codex") ||
-				strings.HasPrefix(baseName, "o1") || strings.HasPrefix(baseName, "o3") ||
-				strings.HasPrefix(baseName, "o4") || strings.HasPrefix(baseName, "text-embedding-") ||
-				strings.HasPrefix(baseName, "text-moderation-") || strings.HasPrefix(baseName, "omni-moderation-") ||
-				strings.HasPrefix(baseName, "dall-e-") || strings.HasPrefix(baseName, "whisper-") ||
-				strings.HasPrefix(baseName, "tts-") || strings.HasPrefix(baseName, "sora-")
-		}
-		if include {
-			filtered = append(filtered, modelName)
-		}
-	}
-	sort.Strings(filtered)
-	return filtered
 }
 
 // AnthropicPasswordLogin verifies a password and exports only credentials
@@ -166,8 +104,8 @@ func AnthropicPasswordLogin(c *gin.Context) {
 			Status: token.Status,
 		})
 	}
-	clientFamily := detectAuthClientFamily(c, request.Client)
-	availableModels := filterAuthModels(model.GetEnabledModels(), clientFamily)
+	clientFamily := detectClientModelFamily(c, request.Client)
+	availableModels := filterModelsForClient(model.GetEnabledModels(), clientFamily)
 
 	model.UpdateUserLastLoginAt(user.Id)
 	model.RecordLoginLog(
