@@ -97,6 +97,12 @@ installed.
 
 - Password login returns the current user's `access_token` and API keys, but only
   keys whose status is enabled. Disabled keys must never be returned.
+- Password login also returns a `models` array filtered for the detected client:
+  `/anthropic/*`, Claude/Anthropic client identifiers return Claude-family
+  models; Codex, ChatGPT, and OpenAI identifiers return OpenAI-family models;
+  unidentified clients receive all enabled models. Detection accepts the JSON
+  `client` field, `Originator`, `X-Client-Name`, `X-Client`, `X-App`, and
+  `User-Agent`; it is a display filter, not an authorization boundary.
 - Accounts protected by 2FA must use the normal login flow; compatibility password
   login must not bypass the second factor.
 - Password-login endpoints use a dedicated shared rate-limit bucket. A 429 response

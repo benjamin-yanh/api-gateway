@@ -25,7 +25,7 @@ func setupAnthropicPasswordLoginTestDB(t *testing.T) *gorm.DB {
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.TwoFA{}, &model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.TwoFA{}, &model.Log{}, &model.Ability{}))
 	model.DB = db
 	model.LOG_DB = db
 	common.RedisEnabled = false
@@ -96,6 +96,100 @@ func TestAnthropicPasswordLoginReturnsOnlyCurrentUserCredentials(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "owner-disabled-key")
 	assert.NotContains(t, recorder.Body.String(), "other-key")
 	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+}
+
+func TestAnthropicPasswordLoginFiltersModelsByClientFamily(t *testing.T) {
+	testCases := []struct {
+		name           string
+		requestPath    string
+		client         string
+		headers        map[string]string
+		expectedModels []string
+	}{
+		{
+			name:           "anthropic compatibility path",
+			requestPath:    "/anthropic/auth/login",
+			expectedModels: []string{"anthropic/claude-opus-4-1", "claude-sonnet-4-5"},
+		},
+		{
+			name:           "Claude user agent",
+			requestPath:    "/auth/login",
+			headers:        map[string]string{"User-Agent": "claude-cli/2.1.0"},
+			expectedModels: []string{"anthropic/claude-opus-4-1", "claude-sonnet-4-5"},
+		},
+		{
+			name:           "Codex originator",
+			requestPath:    "/auth/login",
+			headers:        map[string]string{"Originator": "codex_cli_rs"},
+			expectedModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:           "ChatGPT user agent",
+			requestPath:    "/auth/login",
+			headers:        map[string]string{"User-Agent": "ChatGPT/1.2026.224"},
+			expectedModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:           "declared OpenAI client",
+			requestPath:    "/auth/login",
+			client:         "OpenAI Desktop",
+			expectedModels: []string{"gpt-5.2-codex", "openai/o3"},
+		},
+		{
+			name:        "unknown client",
+			requestPath: "/auth/login",
+			headers:     map[string]string{"User-Agent": "custom-client/1.0"},
+			expectedModels: []string{
+				"anthropic/claude-opus-4-1",
+				"claude-sonnet-4-5",
+				"deepseek-chat",
+				"gemini-3-pro",
+				"gpt-5.2-codex",
+				"openai/o3",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			db := setupAnthropicPasswordLoginTestDB(t)
+			createAnthropicLoginUser(t, db, 101, "owner@example.com", "password123", "owner-access-token")
+			modelNames := []string{
+				"claude-sonnet-4-5",
+				"anthropic/claude-opus-4-1",
+				"gpt-5.2-codex",
+				"openai/o3",
+				"gemini-3-pro",
+				"deepseek-chat",
+			}
+			for index, modelName := range modelNames {
+				require.NoError(t, db.Create(&model.Ability{
+					Group:     "default",
+					Model:     modelName,
+					ChannelId: index + 1,
+					Enabled:   true,
+				}).Error)
+			}
+
+			body := fmt.Sprintf(`{"username":"owner@example.com","password":"password123","client":%q}`, testCase.client)
+			request := httptest.NewRequest(http.MethodPost, testCase.requestPath, strings.NewReader(body))
+			for key, value := range testCase.headers {
+				request.Header.Set(key, value)
+			}
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = request
+
+			AnthropicPasswordLogin(ctx)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			var response struct {
+				Models []string `json:"models"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.Equal(t, testCase.expectedModels, response.Models)
+		})
+	}
 }
 
 func TestAnthropicPasswordLoginRejectsInvalidPassword(t *testing.T) {
