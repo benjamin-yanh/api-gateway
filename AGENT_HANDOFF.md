@@ -65,6 +65,11 @@ installed.
 ### Currency and pricing
 
 - User-facing quota and pricing are configured for RMB/CNY rather than USD.
+- The public `/pricing` route is an API quotation page with model-category
+  filters and input/cache/output price columns. The former model-square card,
+  filter-sidebar, drawer, and model-detail UI are intentionally hidden.
+- The rankings navigation entry and `/rankings` public page are intentionally
+  hidden; direct visits redirect to the home page.
 - `backend/setting/operation_setting/general_setting.go` uses the CNY quota display
   type by default.
 - Pricing editors must not expose floating-point artifacts such as
