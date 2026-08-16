@@ -29,7 +29,10 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
+	Email string `json:"email"`
+	// Username is retained as a deprecated compatibility alias for older API
+	// clients. New clients must send email.
+	Username string `json:"username,omitempty"`
 	Password string `json:"password"`
 }
 
@@ -49,21 +52,23 @@ func Login(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	username := loginRequest.Username
+	email := model.NormalizeEmail(loginRequest.Email)
+	legacyUsername := strings.TrimSpace(loginRequest.Username)
 	password := loginRequest.Password
-	if username == "" || password == "" {
+	if (email == "" && legacyUsername == "") || password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	user := model.User{
-		Username: username,
+		Email:    email,
+		Username: legacyUsername,
 		Password: password,
 	}
 	err = user.ValidateAndFill()
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrDatabase):
-			common.SysLog(fmt.Sprintf("Login database error for user %s: %v", username, err))
+			common.SysLog(fmt.Sprintf("Login database error for email %s: %v", email, err))
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)

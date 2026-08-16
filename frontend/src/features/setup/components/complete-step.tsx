@@ -91,7 +91,7 @@ export function CompleteStep({ status, values }: CompleteStepProps) {
             <dd className='text-sm font-semibold'>
               {status?.root_init
                 ? t('Existing account will be reused')
-                : values.username || t('Not set yet')}
+                : values.email || t('Not set yet')}
             </dd>
           </div>
 

@@ -23,7 +23,7 @@ import type { AuthBundle } from '@/stores/auth-store'
 // ============================================================================
 
 export interface LoginPayload {
-  username: string
+  email: string
   password: string
   turnstile?: string
 }

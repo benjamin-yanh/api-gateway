@@ -2,6 +2,7 @@ package controller
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,7 +18,10 @@ type Setup struct {
 }
 
 type SetupRequest struct {
-	Username           string `json:"username"`
+	Email string `json:"email"`
+	// Username remains as a compatibility alias for older setup clients. Its
+	// value must still be an email address.
+	Username           string `json:"username,omitempty"`
 	Password           string `json:"password"`
 	ConfirmPassword    string `json:"confirmPassword"`
 	SelfUseModeEnabled bool   `json:"SelfUseModeEnabled"`
@@ -68,11 +72,28 @@ func PostSetup(c *gin.Context) {
 
 	// If root doesn't exist, validate and create admin account
 	if !rootExists {
-		// Validate username length: max 12 characters to align with model.User validation
-		if len(req.Username) > 12 {
+		email := model.NormalizeEmail(req.Email)
+		if email == "" {
+			email = model.NormalizeEmail(req.Username)
+		}
+		if utf8.RuneCountInString(email) > model.UserNameMaxLength {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "用户名长度不能超过12个字符",
+				"message": "邮箱长度不能超过128个字符",
+			})
+			return
+		}
+		if err := common.Validate.Var(email, "required,email"); err != nil {
+			c.JSON(200, gin.H{
+				"success": false,
+				"message": "请输入有效的邮箱地址",
+			})
+			return
+		}
+		if err := model.EnsureEmailAvailable(email, 0); err != nil {
+			c.JSON(200, gin.H{
+				"success": false,
+				"message": "邮箱已被使用或暂时无法验证",
 			})
 			return
 		}
@@ -103,7 +124,8 @@ func PostSetup(c *gin.Context) {
 			return
 		}
 		rootUser := model.User{
-			Username:    req.Username,
+			Username:    email,
+			Email:       email,
 			Password:    hashedPassword,
 			Role:        common.RoleRootUser,
 			Status:      common.UserStatusEnabled,

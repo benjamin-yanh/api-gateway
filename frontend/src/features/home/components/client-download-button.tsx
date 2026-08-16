@@ -22,35 +22,34 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
-export const CLIENT_DOWNLOAD_URL =
-  'https://1drv.ms/u/c/cd526840955bb684/IQC1FKmz8oOqT46lNSiiMPYuAZ1WO981Fky0lYSjNKwfW-U?e=4cbYog'
-export const CLIENT_DOWNLOAD_FILENAME = 'G同学-Claude.dmg'
+import { CLIENT_DOWNLOADS } from '../constants'
 
 export function ClientDownloadButton() {
   const { t } = useTranslation()
 
   return (
-    <Button
-      variant='secondary'
-      className='h-auto min-h-12 rounded-xl px-4 py-2.5 shadow-sm'
-      aria-label={t('Download client: {{filename}}', {
-        filename: CLIENT_DOWNLOAD_FILENAME,
-      })}
-      render={
-        <a
-          href={CLIENT_DOWNLOAD_URL}
-          target='_blank'
-          rel='noopener noreferrer'
-        />
-      }
-    >
-      <HugeiconsIcon icon={Download01Icon} data-icon='inline-start' />
-      <span className='flex flex-col items-start leading-tight'>
-        <span>{t('Download macOS client')}</span>
-        <span className='text-muted-foreground text-[11px] font-normal'>
-          {CLIENT_DOWNLOAD_FILENAME}
-        </span>
-      </span>
-    </Button>
+    <div className='flex flex-wrap gap-3'>
+      {CLIENT_DOWNLOADS.map((download) => (
+        <Button
+          key={download.filename}
+          variant='secondary'
+          className='h-auto min-h-12 rounded-xl px-4 py-2.5 shadow-sm'
+          aria-label={t('Download client: {{filename}}', {
+            filename: download.filename,
+          })}
+          render={
+            <a href={download.url} target='_blank' rel='noopener noreferrer' />
+          }
+        >
+          <HugeiconsIcon icon={Download01Icon} data-icon='inline-start' />
+          <span className='flex flex-col items-start leading-tight'>
+            <span>{t('Download macOS client')}</span>
+            <span className='text-muted-foreground text-[11px] font-normal'>
+              {download.filename}
+            </span>
+          </span>
+        </Button>
+      ))}
+    </div>
   )
 }

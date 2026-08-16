@@ -20,10 +20,21 @@ For commercial licensing, please contact support@quantumnous.com
  * Home page constants
  * All hardcoded data for home page sections
  */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 // Layout - Main base classes
 export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
+
+export const CLIENT_DOWNLOADS = [
+  {
+    filename: 'G同学-Claude.dmg',
+    url: 'https://1drv.ms/u/c/cd526840955bb684/IQC1FKmz8oOqT46lNSiiMPYuAZ1WO981Fky0lYSjNKwfW-U?e=4cbYog',
+  },
+  {
+    filename: 'G同学-ChatGPT.dmg',
+    url: 'https://1drv.ms/u/c/cd526840955bb684/IQBEckYTWuTzSZM2xbWYWUZ_AWuQ0cayjDmt5Q7WT_wQ7Ew?e=I0I9Zt',
+  },
+] as const
 
 // Hero section - AI Applications (Left side)
 export const AI_APPLICATIONS = [

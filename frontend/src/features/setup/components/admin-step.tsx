@@ -57,17 +57,18 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
     <div className='grid gap-4 sm:grid-cols-2'>
       <FormField
         control={form.control}
-        name='username'
+        name='email'
         render={({ field }) => (
           <FormItem>
-            <FormLabel>{t('Administrator username')}</FormLabel>
+            <FormLabel>{t('Administrator email')}</FormLabel>
             <FormControl>
               <Input
                 {...field}
-                placeholder={t('Choose a username')}
-                autoComplete='username'
+                type='email'
+                placeholder={t('Enter administrator email')}
+                autoComplete='email'
                 onChange={(event) => {
-                  form.clearErrors('username')
+                  form.clearErrors('email')
                   field.onChange(event)
                 }}
               />

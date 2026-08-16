@@ -15,29 +15,65 @@ import (
 )
 
 const maxAccessLogJSONBodyBytes int64 = 256 << 10
-const accessLogRedactedValue = "[REDACTED]"
+const maxAccessLogResponseBodyBytes = 1 << 20
 
 type accessLogBodyReader struct {
 	io.Reader
 	io.Closer
 }
 
-// AccessLog records API request metadata after the request completes. Static
-// web traffic and the access-log query endpoints themselves are excluded.
+// accessLogResponseWriter forwards every response chunk immediately while
+// retaining a bounded copy of JSON and SSE output for the access-log detail.
+// It does not buffer delivery, so streaming behavior and flushing are unchanged.
+type accessLogResponseWriter struct {
+	gin.ResponseWriter
+	body      bytes.Buffer
+	truncated bool
+}
+
+func (w *accessLogResponseWriter) Write(data []byte) (int, error) {
+	w.capture(data)
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *accessLogResponseWriter) WriteString(data string) (int, error) {
+	w.capture([]byte(data))
+	return w.ResponseWriter.WriteString(data)
+}
+
+func (w *accessLogResponseWriter) capture(data []byte) {
+	if !isAccessLogResponseMediaType(w.Header().Get("Content-Type")) || len(data) == 0 {
+		return
+	}
+	remaining := maxAccessLogResponseBodyBytes - w.body.Len()
+	if remaining <= 0 {
+		w.truncated = true
+		return
+	}
+	if len(data) > remaining {
+		_, _ = w.body.Write(data[:remaining])
+		w.truncated = true
+		return
+	}
+	_, _ = w.body.Write(data)
+}
+
+// AccessLog records data-plane request metadata after the request completes.
+// Control-plane, dashboard, authentication, and static web traffic are not
+// persisted, even though this middleware is installed on every server role.
 func AccessLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startedAt := time.Now()
-		requestURL := sanitizedAccessLogURL(c.Request.URL)
-		headers := sanitizedAccessLogHeaders(c.Request.Header)
+		requestURL := accessLogURL(c.Request.URL)
+		headers := accessLogHeaders(c.Request.Header)
 		body, bodySize, bodyOmitted := captureAccessLogJSONBody(c)
+		responseWriter := &accessLogResponseWriter{ResponseWriter: c.Writer}
+		c.Writer = responseWriter
 
 		c.Next()
 
 		routeTag, _ := c.Get(RouteTagKey)
-		if routeTag != "api" && routeTag != "relay" && routeTag != "old_api" {
-			return
-		}
-		if strings.HasPrefix(c.Request.URL.Path, "/api/access-log") {
+		if routeTag != "relay" {
 			return
 		}
 
@@ -47,28 +83,58 @@ func AccessLog() gin.HandlerFunc {
 		if responseSize < 0 {
 			responseSize = 0
 		}
+		responseBody, responseBodyType := accessLogResponseBody(
+			responseWriter.body.Bytes(),
+			responseWriter.Header().Get("Content-Type"),
+		)
 		accessLog := &model.AccessLog{
-			CreatedAt:    startedAt.Unix(),
-			RequestId:    requestID,
-			UserId:       c.GetInt("id"),
-			Username:     c.GetString("username"),
-			Method:       c.Request.Method,
-			Url:          requestURL,
-			Route:        c.FullPath(),
-			Status:       c.Writer.Status(),
-			LatencyMs:    time.Since(startedAt).Milliseconds(),
-			ResponseSize: responseSize,
-			Ip:           c.ClientIP(),
-			NodeName:     common.NodeName,
-			Headers:      headers,
-			Body:         body,
-			BodySize:     bodySize,
-			BodyOmitted:  bodyOmitted,
+			CreatedAt:             startedAt.Unix(),
+			RequestId:             requestID,
+			UserId:                c.GetInt("id"),
+			Username:              c.GetString("username"),
+			Method:                c.Request.Method,
+			Url:                   requestURL,
+			Route:                 c.FullPath(),
+			Status:                c.Writer.Status(),
+			LatencyMs:             time.Since(startedAt).Milliseconds(),
+			ResponseSize:          responseSize,
+			Ip:                    c.ClientIP(),
+			NodeName:              common.NodeName,
+			Headers:               headers,
+			Body:                  model.AccessLogPayload(body),
+			BodySize:              bodySize,
+			BodyOmitted:           bodyOmitted,
+			ResponseBody:          model.AccessLogPayload(responseBody),
+			ResponseBodyType:      responseBodyType,
+			ResponseBodyTruncated: responseWriter.truncated,
 		}
 		if err := model.CreateAccessLog(accessLog); err != nil {
 			common.SysError("failed to record access log: " + err.Error())
 		}
 	}
+}
+
+func isAccessLogResponseMediaType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	return mediaType == "text/event-stream" ||
+		mediaType == "application/x-ndjson" ||
+		mediaType == "application/json" ||
+		strings.HasSuffix(mediaType, "+json")
+}
+
+func accessLogResponseBody(body []byte, contentType string) (string, string) {
+	if len(body) == 0 {
+		return "", ""
+	}
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || !isAccessLogResponseMediaType(contentType) {
+		return "", ""
+	}
+	bodyText := strings.ToValidUTF8(string(body), "\uFFFD")
+	return bodyText, mediaType
 }
 
 func captureAccessLogJSONBody(c *gin.Context) (string, int64, bool) {
@@ -106,11 +172,7 @@ func captureAccessLogJSONBody(c *gin.Context) (string, int64, bool) {
 	if err := common.Unmarshal(body, &value); err != nil {
 		return "", bodySize, false
 	}
-	sanitized, err := common.Marshal(redactAccessLogJSON(value))
-	if err != nil {
-		return "", bodySize, true
-	}
-	return string(sanitized), bodySize, false
+	return strings.ToValidUTF8(string(body), "\uFFFD"), bodySize, false
 }
 
 func isJSONMediaType(contentType string) bool {
@@ -121,74 +183,17 @@ func isJSONMediaType(contentType string) bool {
 	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
 }
 
-func redactAccessLogJSON(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		redacted := make(map[string]any, len(typed))
-		for key, item := range typed {
-			if isSensitiveAccessLogKey(key) {
-				redacted[key] = accessLogRedactedValue
-				continue
-			}
-			redacted[key] = redactAccessLogJSON(item)
-		}
-		return redacted
-	case []any:
-		redacted := make([]any, len(typed))
-		for index, item := range typed {
-			redacted[index] = redactAccessLogJSON(item)
-		}
-		return redacted
-	default:
-		return value
-	}
-}
-
-func sanitizedAccessLogHeaders(headers http.Header) string {
-	values := make(map[string][]string, len(headers))
-	for key, items := range headers {
-		if isSensitiveAccessLogKey(key) {
-			values[key] = []string{accessLogRedactedValue}
-			continue
-		}
-		values[key] = append([]string(nil), items...)
-	}
-	encoded, err := common.Marshal(values)
+func accessLogHeaders(headers http.Header) string {
+	encoded, err := common.Marshal(headers)
 	if err != nil {
 		return "{}"
 	}
 	return string(encoded)
 }
 
-func sanitizedAccessLogURL(requestURL *url.URL) string {
+func accessLogURL(requestURL *url.URL) string {
 	if requestURL == nil {
 		return ""
 	}
-	copyURL := *requestURL
-	query := copyURL.Query()
-	for key := range query {
-		if isSensitiveAccessLogKey(key) {
-			query.Set(key, accessLogRedactedValue)
-		}
-	}
-	copyURL.RawQuery = query.Encode()
-	return copyURL.RequestURI()
-}
-
-func isSensitiveAccessLogKey(key string) bool {
-	normalized := strings.NewReplacer("-", "_", ".", "_").Replace(strings.ToLower(strings.TrimSpace(key)))
-	switch normalized {
-	case "authorization", "proxy_authorization", "cookie", "set_cookie",
-		"password", "passwd", "secret", "client_secret", "private_key",
-		"api_key", "apikey", "x_api_key", "access_token", "refresh_token",
-		"id_token", "session_token", "session_id", "token", "credential",
-		"signature", "key":
-		return true
-	}
-	return strings.Contains(normalized, "authorization") ||
-		strings.HasSuffix(normalized, "_password") ||
-		strings.HasSuffix(normalized, "_secret") ||
-		strings.HasSuffix(normalized, "_api_key") ||
-		strings.HasSuffix(normalized, "_token") ||
-		strings.HasSuffix(normalized, "_signature")
+	return requestURL.RequestURI()
 }

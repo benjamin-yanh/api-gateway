@@ -73,13 +73,15 @@ func TestMigrateRetiredFrontendOptionsMigratesValidValuesIdempotently(t *testing
 }
 
 func TestMigrateRetiredFrontendOptionsUpdatesOnlyLegacyDefaultBrand(t *testing.T) {
-	t.Run("legacy default", func(t *testing.T) {
-		db := useFrontendOptionMigrationDB(t)
-		require.NoError(t, db.Create(&Option{Key: "SystemName", Value: legacyDefaultSystemName}).Error)
+	for _, legacyDefault := range legacyDefaultSystemNames {
+		t.Run(legacyDefault, func(t *testing.T) {
+			db := useFrontendOptionMigrationDB(t)
+			require.NoError(t, db.Create(&Option{Key: "SystemName", Value: legacyDefault}).Error)
 
-		require.NoError(t, MigrateRetiredFrontendOptions())
-		assert.Equal(t, common.DefaultSystemName, requireOptionValue(t, db, "SystemName"))
-	})
+			require.NoError(t, MigrateRetiredFrontendOptions())
+			assert.Equal(t, common.DefaultSystemName, requireOptionValue(t, db, "SystemName"))
+		})
+	}
 
 	t.Run("custom brand", func(t *testing.T) {
 		db := useFrontendOptionMigrationDB(t)

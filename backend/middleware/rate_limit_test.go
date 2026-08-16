@@ -64,6 +64,7 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	limitedResponse := performRateLimitRequest(router, "/limited", remoteAddr)
 	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
 	assert.Equal(t, "37", limitedResponse.Header().Get("Retry-After"))
+	assert.JSONEq(t, `{"success":false,"code":"RATE_LIMITED","message":"Too many requests"}`, limitedResponse.Body.String())
 
 	key := redisIPRateLimitKey("TEST", "192.0.2.10")
 	count, err := redisServer.Get(key)
@@ -71,6 +72,39 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	assert.Equal(t, "3", count)
 	assert.Equal(t, 37*time.Second, redisServer.TTL(key))
 	assert.True(t, redisServer.Exists(legacyKey), "the v2 counter must not touch an old list key")
+}
+
+func TestPasswordLoginRateLimitUsesIndependentBucket(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+	previousEnabled := common.CriticalRateLimitEnable
+	previousLimit := common.CriticalRateLimitNum
+	previousDuration := common.CriticalRateLimitDuration
+	common.CriticalRateLimitEnable = true
+	common.CriticalRateLimitNum = 1
+	common.CriticalRateLimitDuration = 60
+	t.Cleanup(func() {
+		common.CriticalRateLimitEnable = previousEnabled
+		common.CriticalRateLimitNum = previousLimit
+		common.CriticalRateLimitDuration = previousDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET("/critical", CriticalRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	router.GET("/login", PasswordLoginRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	remoteAddr := "192.0.2.11:12345"
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/critical", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/critical", remoteAddr).Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/login", remoteAddr).Code)
+	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/login", remoteAddr).Code)
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey("CT", "192.0.2.11")))
+	assert.True(t, redisServer.Exists(redisIPRateLimitKey(passwordLoginRateLimitMark, "192.0.2.11")))
 }
 
 func TestRedisUserRateLimiterUsesSharedFixedWindow(t *testing.T) {

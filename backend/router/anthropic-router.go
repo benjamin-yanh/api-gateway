@@ -14,13 +14,20 @@ import (
 // SetAnthropicControlRouter 注册登录、资料与 Key 签发接口。
 // 这些接口需要访问用户和 Session 数据，因此只能部署在控制面实例。
 func SetAnthropicControlRouter(router *gin.Engine) {
+	login := router.Group("/auth")
+	login.Use(middleware.RouteTag("api"))
+	login.Use(gzip.Gzip(gzip.DefaultCompression))
+	login.Use(middleware.BodyStorageCleanup())
+	login.Use(middleware.GlobalAPIRateLimit())
+	login.POST("/login", middleware.PasswordLoginRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicPasswordLogin)
+
 	group := router.Group("/anthropic")
 	group.Use(middleware.RouteTag("api"))
 	group.Use(gzip.Gzip(gzip.DefaultCompression))
 	group.Use(middleware.BodyStorageCleanup())
 	group.Use(middleware.GlobalAPIRateLimit())
 	{
-		group.POST("/auth/login", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicPasswordLogin)
+		group.POST("/auth/login", middleware.PasswordLoginRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicPasswordLogin)
 		group.GET("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AnthropicOAuthAuthorize)
 		group.GET("/oauth/code/callback", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AnthropicOAuthCodeCallback)
 		group.POST("/v1/oauth/token", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.AnthropicOAuthToken)

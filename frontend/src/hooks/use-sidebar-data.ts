@@ -81,6 +81,12 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          {
+            title: t('Access Logs'),
+            url: '/access-logs',
+            icon: BookOpenText,
+            requiredRole: ROLE.ADMIN,
+          },
         ],
       },
       {
@@ -122,12 +128,6 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
-          },
-          {
-            title: t('Access Logs'),
-            url: '/access-logs',
-            icon: BookOpenText,
-            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),

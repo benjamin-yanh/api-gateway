@@ -6,6 +6,11 @@ DO NOT send optional commentary
 
 This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI providers (OpenAI, Claude, Gemini, Azure, AWS Bedrock, etc.) behind a unified API, with user management, billing, rate limiting, and an admin dashboard.
 
+Before changing or deploying the current customized production installation, read
+[`AGENT_HANDOFF.md`](./AGENT_HANDOFF.md). It records the active topology,
+custom endpoints, local verification commands, deployment procedure, and rollback
+requirements. Keep it updated when those operational details change.
+
 ## Tech Stack
 
 - **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM

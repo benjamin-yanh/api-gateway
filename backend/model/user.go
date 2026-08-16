@@ -938,12 +938,24 @@ func (user *User) ValidateAndFill() (err error) {
 	// that means if your field's value is 0, '', false or other zero values,
 	// it won't be used to build query conditions
 	password := user.Password
+	email := NormalizeEmail(user.Email)
 	username := strings.TrimSpace(user.Username)
-	if username == "" || password == "" {
+	if (email == "" && username == "") || password == "" {
 		return ErrUserEmptyCredentials
 	}
-	// find by username or email
-	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	if email != "" {
+		matched, lookupErr := GetUniqueUserByEmail(email)
+		if lookupErr != nil {
+			if errors.Is(lookupErr, ErrEmailNotFound) || errors.Is(lookupErr, ErrEmailAmbiguous) {
+				return ErrInvalidCredentials
+			}
+			return fmt.Errorf("%w: %v", ErrDatabase, lookupErr)
+		}
+		*user = *matched
+	} else {
+		// Deprecated username path for clients that have not migrated to email.
+		err = DB.Where("username = ?", username).First(user).Error
+	}
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrInvalidCredentials

@@ -37,6 +37,9 @@ export interface AccessLogListItem {
 export interface AccessLogDetail extends AccessLogListItem {
   headers: string
   body?: string
+  response_body?: string
+  response_body_type?: string
+  response_body_truncated: boolean
 }
 
 export interface AccessLogListResponse {

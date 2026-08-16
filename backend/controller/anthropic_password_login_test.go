@@ -90,11 +90,10 @@ func TestAnthropicPasswordLoginReturnsOnlyCurrentUserCredentials(t *testing.T) {
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.Equal(t, "owner-access-token", response.AccessToken)
 	assert.Equal(t, "Bearer", response.TokenType)
-	require.Len(t, response.APIKeys, 2)
-	assert.ElementsMatch(t, []string{"sk-owner-key", "sk-owner-disabled-key"}, []string{
-		response.APIKeys[0].APIKey,
-		response.APIKeys[1].APIKey,
-	})
+	require.Len(t, response.APIKeys, 1)
+	assert.Equal(t, "sk-owner-key", response.APIKeys[0].APIKey)
+	assert.Equal(t, common.TokenStatusEnabled, response.APIKeys[0].Status)
+	assert.NotContains(t, recorder.Body.String(), "owner-disabled-key")
 	assert.NotContains(t, recorder.Body.String(), "other-key")
 	assert.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
 }

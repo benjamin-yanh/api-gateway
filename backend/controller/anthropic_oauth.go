@@ -91,6 +91,11 @@ func AnthropicPasswordLogin(c *gin.Context) {
 	}
 	apiKeys := make([]anthropicLoginAPIKey, 0, len(tokens))
 	for _, token := range tokens {
+		// 登录响应只暴露当前可用的密钥，避免客户端保存已禁用、已过期
+		// 或额度已耗尽且无法实际调用模型的凭据。
+		if token.Status != common.TokenStatusEnabled {
+			continue
+		}
 		apiKeys = append(apiKeys, anthropicLoginAPIKey{
 			ID:     token.Id,
 			Name:   token.Name,

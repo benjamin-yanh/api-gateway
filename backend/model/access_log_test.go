@@ -18,9 +18,9 @@ func TestGetAccessLogsFiltersAndOmitsDetailPayload(t *testing.T) {
 	t.Cleanup(func() { DB = originalDB })
 
 	logs := []*AccessLog{
-		{CreatedAt: 10, RequestId: "request-1", Method: "POST", Url: "/v1/chat/completions?mode=fast", Status: 200, Headers: `{"X-Test":["one"]}`, Body: `{"model":"one"}`},
+		{CreatedAt: 10, RequestId: "request-1", Method: "POST", Url: "/v1/chat/completions?mode=fast", Status: 200, Headers: `{"X-Test":["one"]}`, Body: AccessLogPayload(`{"model":"one"}`)},
 		{CreatedAt: 20, RequestId: "request-2", Method: "GET", Url: "/v1/models", Status: 200, Headers: `{"X-Test":["two"]}`},
-		{CreatedAt: 30, RequestId: "request-3", Method: "POST", Url: "/v1/chat/completions?mode=slow", Status: 500, Headers: `{"X-Test":["three"]}`, Body: `{"model":"three"}`},
+		{CreatedAt: 30, RequestId: "request-3", Method: "POST", Url: "/v1/chat/completions?mode=slow", Status: 500, Headers: `{"X-Test":["three"]}`, Body: AccessLogPayload(`{"model":"three"}`), ResponseBody: AccessLogPayload(`{"error":"upstream failed"}`), ResponseBodyType: "application/json"},
 	}
 	for _, accessLog := range logs {
 		require.NoError(t, DB.Create(accessLog).Error)
@@ -39,5 +39,7 @@ func TestGetAccessLogsFiltersAndOmitsDetailPayload(t *testing.T) {
 	detail, err := GetAccessLogById(items[0].Id)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"X-Test":["three"]}`, detail.Headers)
-	assert.JSONEq(t, `{"model":"three"}`, detail.Body)
+	assert.JSONEq(t, `{"model":"three"}`, string(detail.Body))
+	assert.JSONEq(t, `{"error":"upstream failed"}`, string(detail.ResponseBody))
+	assert.Equal(t, "application/json", detail.ResponseBodyType)
 }

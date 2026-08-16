@@ -38,6 +38,7 @@ func TestControlPlaneRouterDoesNotExposeRelayAPI(t *testing.T) {
 	assertRouteRegistered(t, routes, "GET", "/api/status")
 	assertRouteRegistered(t, routes, "GET", "/api/access-log/")
 	assertRouteRegistered(t, routes, "GET", "/api/access-log/:id")
+	assertRouteRegistered(t, routes, "POST", "/auth/login")
 	assertRouteRegistered(t, routes, "POST", "/anthropic/auth/login")
 	assertRouteRegistered(t, routes, "GET", "/anthropic/oauth/authorize")
 	assertRouteRegistered(t, routes, "POST", "/anthropic/v1/oauth/token")

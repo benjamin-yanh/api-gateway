@@ -131,7 +131,7 @@ export function UserAuthForm({
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
-      username: '',
+      email: '',
       password: '',
     },
   })
@@ -161,7 +161,7 @@ export function UserAuthForm({
     setIsLoading(true)
     try {
       const res = await login({
-        username: data.username,
+        email: data.email,
         password: data.password,
         turnstile: turnstileToken,
       })
@@ -352,16 +352,18 @@ export function UserAuthForm({
 
         {passwordLoginEnabled && (
           <>
-            {/* Username Field */}
+            {/* Email Field */}
             <FormField
               control={form.control}
-              name='username'
+              name='email'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Username or Email')}</FormLabel>
+                  <FormLabel>{t('Email')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder={t('Enter your username or email')}
+                      type='email'
+                      autoComplete='email'
+                      placeholder={t('Please enter your email')}
                       {...field}
                     />
                   </FormControl>

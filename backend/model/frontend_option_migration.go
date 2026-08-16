@@ -11,7 +11,8 @@ import (
 )
 
 const retiredThemeOptionKey = "theme.frontend"
-const legacyDefaultSystemName = "New API"
+
+var legacyDefaultSystemNames = []string{"New API", "纪同学"}
 
 type legacyOptionTransform func(string) (string, error)
 
@@ -55,7 +56,7 @@ func MigrateRetiredFrontendOptions() error {
 // built-in brand while preserving other administrator-defined names.
 func migrateDefaultSystemName() error {
 	return DB.Model(&Option{}).
-		Where("key = ? AND value = ?", "SystemName", legacyDefaultSystemName).
+		Where(commonKeyCol+" = ? AND value IN ?", "SystemName", legacyDefaultSystemNames).
 		Update("value", common.DefaultSystemName).Error
 }
 

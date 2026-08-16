@@ -28,7 +28,7 @@ export interface SetupStatus {
 }
 
 export interface SetupFormValues {
-  username: string
+  email: string
   password: string
   confirmPassword: string
   usageMode: SetupUsageMode

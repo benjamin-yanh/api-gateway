@@ -47,8 +47,8 @@ const { act } = await import('react')
 const { createRoot } = await import('react-dom/client')
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
-const { CLIENT_DOWNLOAD_FILENAME, CLIENT_DOWNLOAD_URL, ClientDownloadButton } =
-  await import('../client-download-button')
+const { ClientDownloadButton } = await import('../client-download-button')
+const { CLIENT_DOWNLOADS } = await import('../../constants')
 
 const i18n = createInstance()
 await i18n.use(initReactI18next).init({
@@ -72,7 +72,7 @@ after(() => {
   domWindow.close()
 })
 
-test('opens the named macOS client download in a new tab', async () => {
+test('opens every named macOS client download in a new tab', async () => {
   const container = document.createElement('div')
   document.body.append(container)
   const root = createRoot(container)
@@ -85,20 +85,21 @@ test('opens the named macOS client download in a new tab', async () => {
     )
   })
 
-  const downloadLink = container.querySelector('a')
-  assert.ok(downloadLink)
-  assert.equal(downloadLink.href, CLIENT_DOWNLOAD_URL)
-  assert.equal(downloadLink.target, '_blank')
-  assert.equal(downloadLink.rel, 'noopener noreferrer')
-  assert.match(downloadLink.textContent ?? '', /Download macOS client/)
-  assert.match(
-    downloadLink.textContent ?? '',
-    new RegExp(CLIENT_DOWNLOAD_FILENAME)
-  )
-  assert.equal(
-    downloadLink.getAttribute('aria-label'),
-    `Download client: ${CLIENT_DOWNLOAD_FILENAME}`
-  )
+  const downloadLinks = container.querySelectorAll('a')
+  assert.equal(downloadLinks.length, CLIENT_DOWNLOADS.length)
+
+  for (const [index, download] of CLIENT_DOWNLOADS.entries()) {
+    const downloadLink = downloadLinks.item(index)
+    assert.equal(downloadLink.href, download.url)
+    assert.equal(downloadLink.target, '_blank')
+    assert.equal(downloadLink.rel, 'noopener noreferrer')
+    assert.match(downloadLink.textContent ?? '', /Download macOS client/)
+    assert.match(downloadLink.textContent ?? '', new RegExp(download.filename))
+    assert.equal(
+      downloadLink.getAttribute('aria-label'),
+      `Download client: ${download.filename}`
+    )
+  }
 
   await act(async () => root.unmount())
   container.remove()

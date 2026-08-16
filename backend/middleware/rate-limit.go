@@ -14,6 +14,11 @@ import (
 
 const redisRateLimitNamespace = "rateLimit:v2"
 
+// Password login has its own bucket so unrelated protected API calls cannot
+// prevent a user from signing in. Both password-login endpoints share this
+// mark to retain one brute-force limit per client IP.
+const passwordLoginRateLimitMark = "PL"
+
 // Redis rate limiting intentionally uses a fixed window. The single Lua script
 // makes increment, expiry, and the limit decision atomic, while retaining the
 // simple fixed-window behavior: traffic at a window boundary can burst up to
@@ -140,7 +145,11 @@ func writeRateLimited(c *gin.Context, retryAfterSeconds int64) {
 	if retryAfterSeconds > 0 {
 		c.Header("Retry-After", strconv.FormatInt(retryAfterSeconds, 10))
 	}
-	c.Status(http.StatusTooManyRequests)
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"success": false,
+		"code":    "RATE_LIMITED",
+		"message": "Too many requests",
+	})
 	c.Abort()
 }
 
@@ -174,6 +183,13 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
+	}
+	return defNext
+}
+
+func PasswordLoginRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, passwordLoginRateLimitMark)
 	}
 	return defNext
 }
