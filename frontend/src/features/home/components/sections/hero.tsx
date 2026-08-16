@@ -114,7 +114,7 @@ export function Hero(props: HeroProps) {
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'Bring leading models, application-ready APIs, access control, billing, and observability together to deliver customer service, knowledge, content, and automation solutions faster.'
+              'Bring leading models together to deliver intelligent customer service, knowledge services, content creation, and automation solutions faster. Empowering OPCs and enterprise AI solutions.'
             )}
           </p>
 
