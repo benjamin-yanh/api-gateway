@@ -128,8 +128,8 @@ export function HeaderNavigationSection({
       },
       rankings: {
         ...(config.rankings ?? HEADER_NAV_DEFAULT.rankings),
-        enabled: values.rankingsEnabled,
-        requireAuth: values.rankingsRequireAuth,
+        enabled: false,
+        requireAuth: false,
       },
     }
 
@@ -188,22 +188,11 @@ export function HeaderNavigationSection({
       enabledKey: 'pricingEnabled',
       requireAuthKey: 'pricingRequireAuth',
       requireAuthDependsOn: 'pricingEnabled',
-      title: t('Model Square'),
-      description: t('Public model catalog and pricing page.'),
-      requireAuthTitle: t('Require login to view models'),
+      title: t('API Pricing'),
+      description: t('Public API pricing and billing page.'),
+      requireAuthTitle: t('Require login to view pricing'),
       requireAuthDescription: t(
         'Visitors must authenticate before accessing the pricing directory.'
-      ),
-    },
-    {
-      enabledKey: 'rankingsEnabled',
-      requireAuthKey: 'rankingsRequireAuth',
-      requireAuthDependsOn: 'rankingsEnabled',
-      title: t('Rankings'),
-      description: t('Public rankings page based on live usage data.'),
-      requireAuthTitle: t('Require login to view rankings'),
-      requireAuthDescription: t(
-        'Visitors must authenticate before accessing the rankings page.'
       ),
     },
   ]
