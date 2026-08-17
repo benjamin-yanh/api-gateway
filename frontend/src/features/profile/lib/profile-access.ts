@@ -16,5 +16,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './format'
-export * from './profile-access'
+import { ROLE } from '@/lib/roles'
+
+export interface ProfileAccess {
+  fullAccountSettings: boolean
+  languagePreferences: boolean
+  sidebarSettings: boolean
+  passkey: boolean
+  twoFactor: boolean
+  accessToken: boolean
+}
+
+export function resolveProfileAccess(role?: number): ProfileAccess {
+  const isAdmin = (role ?? ROLE.GUEST) >= ROLE.ADMIN
+
+  return {
+    fullAccountSettings: isAdmin,
+    languagePreferences: isAdmin,
+    sidebarSettings: isAdmin,
+    passkey: isAdmin,
+    twoFactor: isAdmin,
+    accessToken: isAdmin,
+  }
+}

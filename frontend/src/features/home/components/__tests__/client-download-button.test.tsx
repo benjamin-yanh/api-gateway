@@ -57,7 +57,13 @@ await i18n.use(initReactI18next).init({
     en: {
       translation: {
         'Download client: {{filename}}': 'Download client: {{filename}}',
-        'Download macOS client': 'Download macOS client',
+        Download: 'Download',
+        'For focused Claude conversations, coding, and knowledge work.':
+          'For focused Claude conversations, coding, and knowledge work.',
+        'For ChatGPT conversations, writing, analysis, and everyday productivity.':
+          'For ChatGPT conversations, writing, analysis, and everyday productivity.',
+        'For DeepSeek coding workflows and agent-based development.':
+          'For DeepSeek coding workflows and agent-based development.',
       },
     },
   },
@@ -86,15 +92,20 @@ test('opens every named macOS client download in a new tab', async () => {
   })
 
   const downloadLinks = container.querySelectorAll('a')
+  const downloadCards = container.querySelectorAll('[role="listitem"]')
   assert.equal(downloadLinks.length, CLIENT_DOWNLOADS.length)
+  assert.equal(downloadCards.length, CLIENT_DOWNLOADS.length)
 
   for (const [index, download] of CLIENT_DOWNLOADS.entries()) {
     const downloadLink = downloadLinks.item(index)
     assert.equal(downloadLink.href, download.url)
     assert.equal(downloadLink.target, '_blank')
     assert.equal(downloadLink.rel, 'noopener noreferrer')
-    assert.match(downloadLink.textContent ?? '', /Download macOS client/)
-    assert.match(downloadLink.textContent ?? '', new RegExp(download.filename))
+    assert.match(downloadLink.textContent ?? '', /Download/)
+    assert.match(
+      downloadCards.item(index).textContent ?? '',
+      new RegExp(download.filename)
+    )
     assert.equal(
       downloadLink.getAttribute('aria-label'),
       `Download client: ${download.filename}`

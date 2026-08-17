@@ -1007,7 +1007,7 @@ func DeleteSelf(c *gin.Context) {
 		return
 	}
 
-	err := model.DeleteUserById(id)
+	err := model.SoftDeleteUserById(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return

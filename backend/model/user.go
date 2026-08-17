@@ -475,7 +475,7 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
-func DeleteUserById(id int) (err error) {
+func SoftDeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}

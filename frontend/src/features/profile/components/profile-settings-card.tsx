@@ -37,12 +37,14 @@ interface ProfileSettingsCardProps {
   profile: UserProfile | null
   loading: boolean
   onProfileUpdate: () => void
+  showFullSettings: boolean
 }
 
 export function ProfileSettingsCard({
   profile,
   loading,
   onProfileUpdate,
+  showFullSettings,
 }: ProfileSettingsCardProps) {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState('bindings')
@@ -72,36 +74,44 @@ export function ProfileSettingsCard({
       iconTone='info'
       disableHoverEffect
     >
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
-          <TabsTrigger
-            value='bindings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Link2 className='h-4 w-4' />
-            <span className='hidden sm:inline'>{t('Account Bindings')}</span>
-            <span className='sm:hidden'>{t('Bindings')}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value='settings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Settings className='h-4 w-4' />
-            <span className='hidden sm:inline'>
-              {t('Settings & Preferences')}
-            </span>
-            <span className='sm:hidden'>{t('Settings')}</span>
-          </TabsTrigger>
-        </TabsList>
+      {showFullSettings ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
+            <TabsTrigger
+              value='bindings'
+              className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
+            >
+              <Link2 className='h-4 w-4' />
+              <span className='hidden sm:inline'>{t('Account Bindings')}</span>
+              <span className='sm:hidden'>{t('Bindings')}</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value='settings'
+              className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
+            >
+              <Settings className='h-4 w-4' />
+              <span className='hidden sm:inline'>
+                {t('Settings & Preferences')}
+              </span>
+              <span className='sm:hidden'>{t('Settings')}</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value='bindings' className='mt-4 sm:mt-6'>
-          <AccountBindingsTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
+          <TabsContent value='bindings' className='mt-4 sm:mt-6'>
+            <AccountBindingsTab profile={profile} onUpdate={onProfileUpdate} />
+          </TabsContent>
 
-        <TabsContent value='settings' className='mt-4 sm:mt-6'>
-          <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value='settings' className='mt-4 sm:mt-6'>
+            <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <AccountBindingsTab
+          profile={profile}
+          onUpdate={onProfileUpdate}
+          emailOnly
+        />
+      )}
     </TitledCard>
   )
 }

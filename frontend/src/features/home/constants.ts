@@ -27,14 +27,17 @@ export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
 
 export const CLIENT_DOWNLOADS = [
   {
+    id: 'claude',
     filename: 'G同学-Claude.dmg',
     url: 'https://1drv.ms/u/c/cd526840955bb684/IQD4NJwmglOhTr4hqvsUzW5mAeyKxr6ztBRwvcGdF_pR4ZU?e=g1f0R4',
   },
   {
+    id: 'chatgpt',
     filename: 'G同学-ChatGPT.dmg',
     url: 'https://1drv.ms/u/c/cd526840955bb684/IQBEckYTWuTzSZM2xbWYWUZ_AWuQ0cayjDmt5Q7WT_wQ7Ew?e=I0I9Zt',
   },
   {
+    id: 'deepseek-harness',
     filename: 'G同学-DeepSeek-Harness.dmg',
     url: 'https://1drv.ms/u/c/cd526840955bb684/IQCy9qlV-X6mTLDW6OFQRA6zAVfM-YWwS58__3R7Nt0Quv8?e=Bqgm0f',
   },

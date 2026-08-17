@@ -73,6 +73,36 @@ func TestHardDeleteUserFailsClosedWhenAuthFenceCannotPublish(t *testing.T) {
 	}
 }
 
+func TestSoftDeleteUserRetainsAccountAndAuthenticationData(t *testing.T) {
+	truncateTables(t)
+
+	user := User{
+		Username: "soft-delete-user", Password: "password", AuthVersion: 1,
+		Status: common.UserStatusEnabled,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Create(&Token{UserId: user.Id, Key: "soft-delete-token"}).Error)
+	require.NoError(t, DB.Create(&TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: true}).Error)
+	require.NoError(t, DB.Create(&PasskeyCredential{
+		UserID: user.Id, CredentialID: "soft-delete-credential", PublicKey: "public-key",
+	}).Error)
+
+	require.NoError(t, SoftDeleteUserById(user.Id))
+
+	var activeUser User
+	assert.ErrorIs(t, DB.First(&activeUser, user.Id).Error, gorm.ErrRecordNotFound)
+
+	var deletedUser User
+	require.NoError(t, DB.Unscoped().First(&deletedUser, user.Id).Error)
+	assert.True(t, deletedUser.DeletedAt.Valid)
+
+	for _, record := range []any{&Token{}, &TwoFA{}, &PasskeyCredential{}} {
+		var count int64
+		require.NoError(t, DB.Unscoped().Model(record).Where("user_id = ?", user.Id).Count(&count).Error)
+		assert.EqualValues(t, 1, count)
+	}
+}
+
 func TestHardDeleteUserPublishesTombstoneAndPurgesAuthenticationData(t *testing.T) {
 	truncateTables(t)
 	server := useUserCacheMiniRedis(t)

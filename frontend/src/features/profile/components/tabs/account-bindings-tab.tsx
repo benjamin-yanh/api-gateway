@@ -49,6 +49,7 @@ import { EmailBindDialog } from '../dialogs/email-bind-dialog'
 interface AccountBindingsTabProps {
   profile: UserProfile | null
   onUpdate: () => void
+  emailOnly?: boolean
 }
 
 type DialogKey = 'email'
@@ -72,6 +73,7 @@ interface OAuthBindingCallback {
 export function AccountBindingsTab({
   profile,
   onUpdate,
+  emailOnly = false,
 }: AccountBindingsTabProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
@@ -211,42 +213,42 @@ export function AccountBindingsTab({
     [clearPendingOAuthBinding]
   )
 
-  const bindings: BindingItem[] =
-    profile && status
-      ? [
-          {
-            id: 'email',
-            label: t('Email'),
-            icon: Mail,
-            value: profile.email,
-            isBound: Boolean(profile.email),
-            isEnabled: true,
-            onBind: () => dialogs.open('email'),
-          },
-          {
-            id: 'github',
-            label: t('GitHub'),
-            icon: SiGithub,
-            value: (profile as unknown as Record<string, unknown>).github_id as
-              | string
-              | undefined,
-            isBound: Boolean(
-              (profile as unknown as Record<string, unknown>).github_id
-            ),
-            isEnabled: status?.github_oauth || false,
-            onBind: () => {
-              const clientId = status?.github_client_id
-              if (clientId) {
-                void startOAuthBinding('github', (state) =>
-                  buildGitHubOAuthUrl(clientId, state)
-                )
-              }
-            },
-          },
-        ].filter((binding) => binding.isEnabled)
-      : []
+  const bindings: BindingItem[] = []
+  if (profile) {
+    bindings.push({
+      id: 'email',
+      label: t('Email'),
+      icon: Mail,
+      value: profile.email,
+      isBound: Boolean(profile.email),
+      isEnabled: true,
+      onBind: () => dialogs.open('email'),
+    })
+  }
+  if (profile && status?.github_oauth && !emailOnly) {
+    bindings.push({
+      id: 'github',
+      label: t('GitHub'),
+      icon: SiGithub,
+      value: (profile as unknown as Record<string, unknown>).github_id as
+        | string
+        | undefined,
+      isBound: Boolean(
+        (profile as unknown as Record<string, unknown>).github_id
+      ),
+      isEnabled: true,
+      onBind: () => {
+        const clientId = status.github_client_id
+        if (clientId) {
+          void startOAuthBinding('github', (state) =>
+            buildGitHubOAuthUrl(clientId, state)
+          )
+        }
+      },
+    })
+  }
 
-  if (!profile || loading) return null
+  if (!profile || (!emailOnly && loading)) return null
 
   return (
     <>

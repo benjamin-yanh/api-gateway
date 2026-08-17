@@ -104,7 +104,7 @@ export function DeleteAccountDialog({
         </>
       }
       description={t(
-        'This action cannot be undone. This will permanently delete your account and remove all your data from our servers.'
+        'This will deactivate your account and sign you out. Your account data will be retained.'
       )}
       contentClassName='sm:max-w-md'
       titleClassName='text-destructive flex items-center gap-2'
@@ -136,7 +136,9 @@ export function DeleteAccountDialog({
         <Alert variant='destructive'>
           <AlertTriangle className='h-4 w-4' />
           <AlertDescription>
-            {t('Warning: This action is permanent and irreversible!')}
+            {t(
+              'You will not be able to sign in after your account is deactivated.'
+            )}
           </AlertDescription>
         </Alert>
 

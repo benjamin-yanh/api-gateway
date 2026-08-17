@@ -22,6 +22,7 @@ import {
   CardStaggerItem,
 } from '@/components/page-transition'
 import { useStatus } from '@/hooks/use-status'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
@@ -34,18 +35,24 @@ import { ProfileSettingsCard } from './components/profile-settings-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
+import { resolveProfileAccess } from './lib'
 
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
+  const authenticatedRole = useAuthStore((s) => s.auth.user?.role)
+  const access = resolveProfileAccess(profile?.role ?? authenticatedRole)
 
   const checkinEnabled = status?.checkin_enabled === true
   const turnstileEnabled = !!(
     status?.turnstile_check && status?.turnstile_site_key
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
-  const canConfigureSidebar = permissions?.sidebar_settings !== false
+  const canConfigureSidebar =
+    access.sidebarSettings && permissions?.sidebar_settings !== false
+  const hasSidebarContent =
+    checkinEnabled || canConfigureSidebar || access.passkey || access.twoFactor
 
   return (
     <Main>
@@ -56,33 +63,48 @@ export function Profile() {
           </CardStaggerItem>
 
           <CardStaggerItem>
-            <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'>
+            <div
+              className={cn(
+                'grid gap-4 sm:gap-5',
+                hasSidebarContent &&
+                  'xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'
+              )}
+            >
               <div className='space-y-4 sm:space-y-6'>
                 <ProfileSettingsCard
                   profile={profile}
                   loading={loading}
                   onProfileUpdate={refreshProfile}
+                  showFullSettings={access.fullAccountSettings}
                 />
-                <LanguagePreferencesCard
+                {access.languagePreferences ? (
+                  <LanguagePreferencesCard
+                    profile={profile}
+                    onProfileUpdate={refreshProfile}
+                  />
+                ) : null}
+                <ProfileSecurityCard
                   profile={profile}
-                  onProfileUpdate={refreshProfile}
+                  loading={loading}
+                  showAccessToken={access.accessToken}
                 />
-                <ProfileSecurityCard profile={profile} loading={loading} />
                 <LoginSessionsCard />
               </div>
 
-              <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
-                {checkinEnabled && (
-                  <CheckinCalendarCard
-                    checkinEnabled={checkinEnabled}
-                    turnstileEnabled={turnstileEnabled}
-                    turnstileSiteKey={turnstileSiteKey}
-                  />
-                )}
-                {canConfigureSidebar && <SidebarModulesCard />}
-                <PasskeyCard loading={loading} />
-                <TwoFACard loading={loading} />
-              </div>
+              {hasSidebarContent ? (
+                <div className='space-y-4 sm:space-y-6 xl:sticky xl:top-6'>
+                  {checkinEnabled ? (
+                    <CheckinCalendarCard
+                      checkinEnabled={checkinEnabled}
+                      turnstileEnabled={turnstileEnabled}
+                      turnstileSiteKey={turnstileSiteKey}
+                    />
+                  ) : null}
+                  {canConfigureSidebar ? <SidebarModulesCard /> : null}
+                  {access.passkey ? <PasskeyCard loading={loading} /> : null}
+                  {access.twoFactor ? <TwoFACard loading={loading} /> : null}
+                </div>
+              ) : null}
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
