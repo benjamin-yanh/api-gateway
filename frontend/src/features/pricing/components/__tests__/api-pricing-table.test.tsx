@@ -34,6 +34,7 @@ const domGlobals = [
   'Element',
   'Event',
   'CustomEvent',
+  'customElements',
   'MutationObserver',
   'ResizeObserver',
   'matchMedia',

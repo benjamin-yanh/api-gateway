@@ -17,14 +17,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { spawnSync } from 'node:child_process'
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, relative } from 'node:path'
 
 const mode = process.argv[2]
+const selectedPaths = process.argv.slice(3)
 
 if (mode !== '--check' && mode !== '--write') {
   console.error(
-    'Usage: node scripts/format-with-protected-headers.mjs --check|--write'
+    'Usage: node scripts/format-with-protected-headers.mjs --check|--write [path ...]'
   )
   process.exit(2)
 }
@@ -131,7 +138,14 @@ function listChangedFiles(before, files) {
   return changed
 }
 
-const files = walk(root).filter(
+const selectedFiles = selectedPaths.flatMap((path) => {
+  const absolutePath = join(root, path)
+  if (!existsSync(absolutePath)) return []
+  return statSync(absolutePath).isDirectory()
+    ? walk(absolutePath)
+    : [absolutePath]
+})
+const files = (selectedPaths.length > 0 ? selectedFiles : walk(root)).filter(
   (file) => statSync(file).size < 10 * 1024 * 1024
 )
 const before = mode === '--check' ? snapshotFiles(files) : null
@@ -142,7 +156,16 @@ try {
   headers = stripProtectedHeaders(files)
   const result = spawnSync(
     'oxfmt',
-    ['-c', '.oxfmtrc.json', '--ignore-path', '.gitignore', '--write', '.'],
+    [
+      '-c',
+      '.oxfmtrc.json',
+      '--ignore-path',
+      '.gitignore',
+      '--write',
+      ...(selectedPaths.length > 0
+        ? files.map((file) => relative(root, file))
+        : ['.']),
+    ],
     {
       cwd: root,
       stdio: 'inherit',

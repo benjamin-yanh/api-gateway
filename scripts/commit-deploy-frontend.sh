@@ -116,18 +116,29 @@ ln -s "$repo_root/frontend/node_modules" "$build_tree/frontend/node_modules"
 
   tsgo -b
 
+  changed_frontend=()
   changed_typescript=()
   while IFS= read -r file; do
-    changed_typescript+=("${file#frontend/}")
+    relative_file=${file#frontend/}
+    if [[ -e "$relative_file" ]]; then
+      changed_frontend+=("$relative_file")
+    fi
+    case "$relative_file" in
+      *.ts|*.tsx)
+        changed_typescript+=("$relative_file")
+        ;;
+    esac
   done < <(
     git diff-tree --no-commit-id --name-only -r "$commit_sha" |
-      grep -E '^frontend/.*\.(ts|tsx)$' || true
+      grep -E '^frontend/' || true
   )
   if ((${#changed_typescript[@]} > 0)); then
     oxlint -c .oxlintrc.json "${changed_typescript[@]}"
   fi
 
-  node scripts/format-with-protected-headers.mjs --check
+  if ((${#changed_frontend[@]} > 0)); then
+    node scripts/format-with-protected-headers.mjs --check "${changed_frontend[@]}"
+  fi
   rsbuild build
 )
 

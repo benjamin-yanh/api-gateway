@@ -84,7 +84,9 @@ test('renders separate section navigation and on-page navigation landmarks', asy
   assert.equal(sectionLandmarks.item(1).querySelectorAll('a').length, 6)
   assert.equal(onPageLandmarks.item(0).querySelectorAll('a').length, 5)
   assert.equal(
-    sectionLandmarks.item(1).querySelector('a[aria-current="location"]')
+    sectionLandmarks
+      .item(1)
+      .querySelector('a[aria-current="location"]')
       ?.getAttribute('href'),
     '#overview'
   )
@@ -122,7 +124,9 @@ test('filters documentation section links without hiding the article outline', a
 
   assert.equal(
     container
-      .querySelector('nav[aria-label="On this page"] a[aria-current="location"]')
+      .querySelector(
+        'nav[aria-label="On this page"] a[aria-current="location"]'
+      )
       ?.getAttribute('href'),
     '#routing'
   )
