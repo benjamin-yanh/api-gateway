@@ -28,7 +28,7 @@ export const MAIN_BASE_CLASSES = 'bg-background text-foreground w-full'
 export const CLIENT_DOWNLOADS = [
   {
     filename: 'G同学-Claude.dmg',
-    url: 'https://1drv.ms/u/c/cd526840955bb684/IQC1FKmz8oOqT46lNSiiMPYuAZ1WO981Fky0lYSjNKwfW-U?e=4cbYog',
+    url: 'https://1drv.ms/u/c/cd526840955bb684/IQD4NJwmglOhTr4hqvsUzW5mAeyKxr6ztBRwvcGdF_pR4ZU?e=g1f0R4',
   },
   {
     filename: 'G同学-ChatGPT.dmg',
