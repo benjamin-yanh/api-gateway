@@ -27,6 +27,7 @@ const navigationGroups = [
     links: [
       { href: '#overview', label: 'Overview' },
       { href: '#getting-started', label: 'Getting started' },
+      { href: '#cursor', label: 'Cursor setup' },
       { href: '#desktop-clients', label: 'Desktop clients' },
       { href: '#models', label: 'Available models' },
       { href: '#protocols', label: 'Protocol endpoints' },
@@ -37,6 +38,7 @@ const navigationGroups = [
 
 const tableOfContents = [
   { href: '#getting-started', label: 'Base URL and authentication' },
+  { href: '#cursor', label: 'Cursor setup' },
   { href: '#desktop-clients', label: 'Desktop clients' },
   { href: '#models', label: 'Available models' },
   { href: '#protocols', label: 'Protocol endpoints' },

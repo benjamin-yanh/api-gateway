@@ -84,6 +84,15 @@ const routingSteps = [
   },
 ]
 
+const cursorSetupSteps = [
+  'Create an API key on the API Keys page and copy it.',
+  'Open Cursor Settings, then go to Models > API Keys.',
+  'Enter your API key in OpenAI API Key.',
+  'Enable Override OpenAI Base URL and enter the address below.',
+  'Add or enable a standard chat model from the Available models section, then select it in Cursor.',
+  'Depending on your Cursor version, use Verify or send a test message to confirm the connection.',
+]
+
 const sectionClassName =
   'scroll-mt-24 space-y-6 border-t pt-10 [content-visibility:auto] [contain-intrinsic-size:auto_520px]'
 
@@ -171,6 +180,77 @@ export function DocsArticle(props: DocsArticleProps) {
             'The API address shown here follows the address you used to open this site, including its currently accessible IP address.'
           )}
         </p>
+      </section>
+
+      <section id='cursor' className={sectionClassName}>
+        <div>
+          <h2 className='text-2xl font-semibold'>{t('Cursor setup')}</h2>
+          <p className='text-muted-foreground mt-2 leading-7'>
+            {t(
+              'Connect Cursor to this gateway through its OpenAI-compatible API settings.'
+            )}
+          </p>
+        </div>
+
+        <div className='overflow-x-auto rounded-lg border'>
+          <table className='w-full min-w-[36rem] text-left text-sm'>
+            <thead className='bg-muted/50'>
+              <tr>
+                <th className='px-4 py-3 font-semibold'>
+                  {t('Cursor setting')}
+                </th>
+                <th className='px-4 py-3 font-semibold'>{t('Value')}</th>
+              </tr>
+            </thead>
+            <tbody className='divide-y'>
+              <tr>
+                <td className='px-4 py-3'>OpenAI API Key</td>
+                <td className='px-4 py-3 font-mono'>sk-your-key</td>
+              </tr>
+              <tr>
+                <td className='px-4 py-3'>Override OpenAI Base URL</td>
+                <td className='px-4 py-3 font-mono'>{props.baseUrl}/v1</td>
+              </tr>
+              <tr>
+                <td className='px-4 py-3'>{t('Model')}</td>
+                <td className='px-4 py-3'>gpt-5.6-sol</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ol className='space-y-3'>
+          {cursorSetupSteps.map((step, index) => (
+            <li key={step} className='flex gap-3 rounded-lg border p-4'>
+              <span className='bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold'>
+                {index + 1}
+              </span>
+              <p className='pt-0.5 text-sm leading-6'>{t(step)}</p>
+            </li>
+          ))}
+        </ol>
+
+        <div className='border-warning/25 bg-warning/5 space-y-2 rounded-lg border p-4 text-sm leading-6'>
+          <p>
+            {t(
+              "Cursor custom API keys support standard chat models only. Features such as Tab Completion continue using Cursor's built-in models."
+            )}
+          </p>
+          <p>
+            {t(
+              "Override OpenAI Base URL applies globally. Disable the OpenAI API key before switching back to Cursor's built-in models."
+            )}
+          </p>
+        </div>
+
+        <a
+          href='https://docs.cursor.com/settings/api-keys'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='text-primary inline-flex text-sm font-medium hover:underline'
+        >
+          {t('Official documentation')}
+        </a>
       </section>
 
       <section id='desktop-clients' className={sectionClassName}>
