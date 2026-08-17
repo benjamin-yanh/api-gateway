@@ -57,7 +57,10 @@ installed.
 - The browser and Apple touch icon use `frontend/public/app-icon.png`.
 - The home page includes macOS downloads configured in
   `frontend/src/features/home/constants.ts`, currently including
-  `G同学-Claude.dmg` and `G同学-ChatGPT.dmg`.
+  `G同学-Claude.dmg`, `G同学-ChatGPT.dmg`, and
+  `G同学-DeepSeek-Harness.dmg`.
+- The home-page hero does not show the `Enterprise AI Solutions` badge, and the
+  default footer does not show the `Powerful API Management Platform` tagline.
 - Home-page and documentation content has been reduced to the product's supported
   models, protocols, routing, and client usage. Do not restore upstream promotional
   or GitHub links without checking the customization requirements.

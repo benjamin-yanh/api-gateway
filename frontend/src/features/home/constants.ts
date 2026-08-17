@@ -34,6 +34,10 @@ export const CLIENT_DOWNLOADS = [
     filename: 'G同学-ChatGPT.dmg',
     url: 'https://1drv.ms/u/c/cd526840955bb684/IQBEckYTWuTzSZM2xbWYWUZ_AWuQ0cayjDmt5Q7WT_wQ7Ew?e=I0I9Zt',
   },
+  {
+    filename: 'G同学-DeepSeek-Harness.dmg',
+    url: 'https://1drv.ms/u/c/cd526840955bb684/IQCy9qlV-X6mTLDW6OFQRA6zAVfM-YWwS58__3R7Nt0Quv8?e=Bqgm0f',
+  },
 ] as const
 
 // Hero section - AI Applications (Left side)
