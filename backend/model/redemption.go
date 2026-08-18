@@ -148,7 +148,19 @@ func Redeem(key string, userId int) (quota int, err error) {
 		keyCol = `"key"`
 	}
 	common.RandomSleep()
+	cardRedeemed := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
+		cardQuota, cardErr := redeemCard(tx, key, userId)
+		if cardErr == nil {
+			quota = cardQuota
+			cardRedeemed = true
+			return nil
+		}
+		cardTableMissing := cardErr != nil && !tx.Migrator().HasTable(&RedemptionCard{})
+		if !errors.Is(cardErr, gorm.ErrRecordNotFound) && !cardTableMissing {
+			return cardErr
+		}
+
 		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
 			return errors.New("无效的兑换码")
@@ -180,6 +192,10 @@ func Redeem(key string, userId int) (quota int, err error) {
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
+	}
+	if cardRedeemed {
+		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过卡密充值 %s", logger.LogQuota(quota)))
+		return quota, nil
 	}
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return redemption.Quota, nil

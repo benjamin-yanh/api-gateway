@@ -228,6 +228,28 @@ func GetUUID() string {
 
 const keyChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// redemptionCardChars omits visually ambiguous characters while retaining a
+// power-of-two alphabet, so each character can be sampled without modulo bias.
+const redemptionCardChars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
+
+const RedemptionCardKeyLength = 24
+
+// GenerateRedemptionCardKey returns a 120-bit, cryptographically random card
+// key. At 500,000 generated keys, the birthday-collision probability is less
+// than 1e-25; the database unique index remains the final uniqueness guard.
+func GenerateRedemptionCardKey() (string, error) {
+	randomBytes := make([]byte, RedemptionCardKeyLength)
+	if _, err := crand.Read(randomBytes); err != nil {
+		return "", err
+	}
+
+	key := make([]byte, RedemptionCardKeyLength)
+	for i, randomByte := range randomBytes {
+		key[i] = redemptionCardChars[randomByte&31]
+	}
+	return string(key), nil
+}
+
 func GenerateRandomCharsKey(length int) (string, error) {
 	b := make([]byte, length)
 	maxI := big.NewInt(int64(len(keyChars)))

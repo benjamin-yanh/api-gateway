@@ -44,7 +44,7 @@ backend/       — Go backend module
   docs/        — Backend/API documentation
   deploy/      — Backend deployment manifests and service files
 frontend/      — Frontend (React 19, Rsbuild, Base UI, Tailwind)
-  src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
+  src/i18n/    — Frontend internationalization (i18next, en/zh)
   electron/    — Electron desktop wrapper and packaging
 ```
 
@@ -56,7 +56,7 @@ frontend/      — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 
 ### Frontend (`frontend/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
-- Languages: en (base), zh (fallback), zh-TW, fr, ru, ja, vi
+- Languages: en (base), zh (Simplified Chinese)
 - Translation files: `frontend/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
 - Usage: `useTranslation()` hook, call `t('English key')` in components
 - CLI tools: `bun run i18n:sync` (from `frontend/`)

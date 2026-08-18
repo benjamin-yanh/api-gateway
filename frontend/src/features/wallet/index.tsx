@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,7 +30,9 @@ import { BillingHistoryDialog } from './components/dialogs/billing-history-dialo
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { RechargeCenterHero } from './components/recharge-center-hero'
 import { RechargeFormCard } from './components/recharge-form-card'
+import { RedemptionHistoryCard } from './components/redemption-history-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
@@ -47,6 +50,7 @@ import {
   getMinTopupAmount,
   dispatchSelectedPayment,
 } from './lib'
+import { redemptionCardHistoryQueryKey } from './query-keys'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -61,6 +65,7 @@ interface WalletProps {
 
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<UserWalletData | null>(null)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
@@ -218,7 +223,12 @@ export function Wallet(props: WalletProps) {
     const success = await redeemCode(redemptionCode)
     if (success) {
       setRedemptionCode('')
-      await fetchUser()
+      await Promise.all([
+        fetchUser(),
+        queryClient.invalidateQueries({
+          queryKey: redemptionCardHistoryQueryKey,
+        }),
+      ])
     }
   }
 
@@ -285,9 +295,13 @@ export function Wallet(props: WalletProps) {
   return (
     <>
       <SectionPageLayout>
-        <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {t('Recharge Center')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
+          <div className='recharge-center-theme mx-auto flex w-full max-w-7xl flex-col gap-4 rounded-3xl p-1 sm:gap-5'>
+            <RechargeCenterHero user={user} loading={userLoading} />
+
             <WalletStatsCard user={user} loading={userLoading} />
 
             <div
@@ -348,6 +362,8 @@ export function Wallet(props: WalletProps) {
               }
               loading={affiliateLoading}
             />
+
+            <RedemptionHistoryCard />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

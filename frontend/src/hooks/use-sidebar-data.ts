@@ -94,7 +94,7 @@ export function useSidebarData(): SidebarData {
         title: t('Personal'),
         items: [
           {
-            title: t('Wallet'),
+            title: t('Recharge Center'),
             url: '/wallet',
             icon: Wallet,
           },

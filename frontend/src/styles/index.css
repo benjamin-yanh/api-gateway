@@ -168,6 +168,23 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Scoped light-purple palette for the user recharge center. */
+.recharge-center-theme {
+  --primary: oklch(0.83 0.095 300);
+  --primary-foreground: oklch(0.28 0.075 300);
+  --accent: oklch(0.94 0.035 300);
+  --accent-foreground: oklch(0.32 0.065 300);
+  --ring: oklch(0.69 0.13 300);
+}
+
+.dark .recharge-center-theme {
+  --primary: oklch(0.58 0.13 300);
+  --primary-foreground: oklch(0.97 0.015 300);
+  --accent: oklch(0.32 0.07 300);
+  --accent-foreground: oklch(0.94 0.02 300);
+  --ring: oklch(0.7 0.12 300);
+}
+
 @utility container {
   margin-inline: auto;
   padding-inline: 2rem;

@@ -34,6 +34,9 @@ export interface ApiResponse<T = unknown> {
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
 export type RedemptionResponse = ApiResponse<number>
+export type RedemptionCardHistoryResponse = ApiResponse<
+  RedemptionCardHistoryItem[]
+>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
@@ -174,6 +177,14 @@ export interface PresetAmount {
 export interface RedemptionRequest {
   /** Redemption code key */
   key: string
+}
+
+export interface RedemptionCardHistoryItem {
+  id: number
+  group: string
+  amount_rmb: number
+  quota: number
+  redeemed_time: number
 }
 
 /**

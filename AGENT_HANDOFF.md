@@ -1,6 +1,6 @@
 # Agent development and deployment handoff
 
-Last verified: 2026-08-16 (Asia/Shanghai)
+Last verified: 2026-08-18 (Asia/Shanghai)
 
 This document is the operational handoff for the customized `api-gateway`
 installation. Read it together with `AGENTS.md` before modifying or deploying the
@@ -78,6 +78,21 @@ installed.
 - Pricing editors must not expose floating-point artifacts such as
   `￥69.999999999997`; preserve the existing decimal formatting behavior when
   changing pricing code.
+
+### Recharge center and redemption cards
+
+- The authenticated user sidebar exposes `/wallet` as the recharge center and
+  links card purchases to `https://www.kufaka.com/shop/GBCRMEYE`.
+- Redemption cards are stored in `redemption_cards`. Supported groups are
+  `3_RMB_CARD`, `10_RMB_CARD`, `50_RMB_CARD`, `100_RMB_CARD`, and
+  `200_RMB_CARD`.
+- A card redemption locks the card row and performs a compare-and-swap status
+  update before crediting quota in the same database transaction. A card must
+  never credit an account more than once, including concurrent retries.
+- `GET /api/user/redemption-card/history` returns only the signed-in user's ten
+  most recent successful card redemptions and never returns the card secret.
+- The frontend language selector and bundled translations support only English
+  and Simplified Chinese.
 
 ### Login, setup, and local application authorization
 
@@ -235,7 +250,7 @@ cd /Users/benjamin/Documents/github/api-gateway/frontend
 ```
 
 Run focused frontend tests relevant to the modified feature as well. Any new or
-changed user-visible text must be synchronized across all seven locale files under
+changed user-visible text must be synchronized across both locale files under
 `frontend/src/i18n/locales/` according to the i18n project instructions.
 
 ## 5. Production build
