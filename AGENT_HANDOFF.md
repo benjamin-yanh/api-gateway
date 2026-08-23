@@ -1,6 +1,6 @@
 # Agent development and deployment handoff
 
-Last verified: 2026-08-18 (Asia/Shanghai)
+Last verified: 2026-08-23 (Asia/Shanghai)
 
 This document is the operational handoff for the customized `api-gateway`
 installation. Read it together with `AGENTS.md` before modifying or deploying the
@@ -24,9 +24,10 @@ checks on the control host must poll `http://127.0.0.1:3001/api/status`; polling
 port `3000` incorrectly times out and triggers rollback even when the new binary
 started successfully.
 
-Production is reachable through both HTTP and HTTPS on `101.132.177.78`. HTTPS
-validation by IP may require `curl -k` because certificate hostname validation and
-IP certificates are separate concerns.
+Production is reachable through both HTTP and HTTPS on `101.132.177.78`. HTTP
+redirects to HTTPS, so content validation must follow redirects. HTTPS validation
+by IP may require `curl -k` because certificate hostname validation and IP
+certificates are separate concerns.
 
 ### Local environment variables
 
@@ -60,10 +61,9 @@ installed.
   `New API` and `纪同学` to `G同学`, while preserving administrator-defined custom
   names.
 - The browser and Apple touch icon use `frontend/public/app-icon.png`.
-- The home page includes macOS downloads configured in
-  `frontend/src/features/home/constants.ts`, currently including
-  `G同学-Claude.dmg`, `G同学-ChatGPT.dmg`, and
-  `G同学-DeepSeek-Harness.dmg`.
+- The home-page hero has exactly two primary actions: obtain an API key and open
+  `/docs#desktop-clients`. Individual macOS downloads remain in the documentation
+  section and are configured in `frontend/src/features/home/constants.ts`.
 - The home-page hero does not show the `Enterprise AI Solutions` badge, and the
   default footer does not show the `Powerful API Management Platform` tagline.
 - Home-page and documentation content has been reduced to the product's supported
@@ -411,20 +411,20 @@ ss -lntp
 Verify both schemes:
 
 ```bash
-curl -fsS http://101.132.177.78/healthz
-curl -fsS http://101.132.177.78/api/status
-curl -fsS http://101.132.177.78/v1/models
+curl -LfsS http://101.132.177.78/healthz
+curl -LfsS http://101.132.177.78/api/status
+curl -LfsS http://101.132.177.78/v1/models
 
-curl -kfsS https://101.132.177.78/healthz
-curl -kfsS https://101.132.177.78/api/status
-curl -kfsS https://101.132.177.78/v1/models
+curl -kLfsS https://101.132.177.78/healthz
+curl -kLfsS https://101.132.177.78/api/status
+curl -kLfsS https://101.132.177.78/v1/models
 ```
 
 Required results:
 
 - `/healthz` succeeds.
 - `/api/status` reports `system_name` as `G同学`.
-- The HTML `<title>` is `G同学` over HTTP and HTTPS.
+- Direct HTTP requests redirect to HTTPS, and the final HTML `<title>` is `G同学`.
 - `/v1/models` returns HTTP 200 without `x-api-key`.
 - `new-api-control`, `new-api-relay`, and `nginx` are active.
 - A data-plane model request creates one access-log record; control-plane requests
@@ -434,17 +434,17 @@ Example compact validation:
 
 ```bash
 for base_url in http://101.132.177.78 https://101.132.177.78; do
-  system_name=$(curl -kfsS "$base_url/api/status" |
+  system_name=$(curl -kLfsS "$base_url/api/status" |
     python3 -c 'import json,sys; print(json.load(sys.stdin).get("data", {}).get("system_name"))')
-  page_title=$(curl -kfsS "$base_url/" |
+  page_title=$(curl -kLfsS "$base_url/" |
     sed -n 's:.*<title>\([^<]*\)</title>.*:\1:p' | head -1)
-  models_code=$(curl -kso /dev/null -w '%{http_code}' "$base_url/v1/models")
+  models_code=$(curl -kLso /dev/null -w '%{http_code}' "$base_url/v1/models")
   printf '%s | system_name=%s | title=%s | /v1/models=%s\n' \
     "$base_url" "$system_name" "$page_title" "$models_code"
 done
 ```
 
-Last observed production result on 2026-08-16:
+Last observed production result on 2026-08-23 (after following redirects):
 
 ```text
 http://101.132.177.78  | system_name=G同学 | title=G同学 | /v1/models=200
