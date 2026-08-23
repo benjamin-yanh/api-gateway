@@ -213,10 +213,7 @@ EXPECT_ACTIVATE
 
 for scheme in http https; do
   base_url="$scheme://$control_host"
-  curl_options=(-LfsS)
-  if [[ "$scheme" == https ]]; then
-    curl_options=(-kLfsS)
-  fi
+  curl_options=(-kLfsS)
 
   health_role=$(
     curl "${curl_options[@]}" "$base_url/healthz" |

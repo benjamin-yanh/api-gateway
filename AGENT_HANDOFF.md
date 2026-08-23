@@ -64,6 +64,9 @@ installed.
 - The home-page hero has exactly two primary actions: obtain an API key and open
   `/docs#desktop-clients`. Individual macOS downloads remain in the documentation
   section and are configured in `frontend/src/features/home/constants.ts`.
+- The home page does not show provider/model/interface/governance count statistics.
+- Every route displays a bottom-right contact card with customer-service QQ and
+  the `https://t.me/gtongxue` Telegram group.
 - The home-page hero does not show the `Enterprise AI Solutions` badge, and the
   default footer does not show the `Powerful API Management Platform` tagline.
 - Home-page and documentation content has been reduced to the product's supported
@@ -411,9 +414,9 @@ ss -lntp
 Verify both schemes:
 
 ```bash
-curl -LfsS http://101.132.177.78/healthz
-curl -LfsS http://101.132.177.78/api/status
-curl -LfsS http://101.132.177.78/v1/models
+curl -kLfsS http://101.132.177.78/healthz
+curl -kLfsS http://101.132.177.78/api/status
+curl -kLfsS http://101.132.177.78/v1/models
 
 curl -kLfsS https://101.132.177.78/healthz
 curl -kLfsS https://101.132.177.78/api/status
