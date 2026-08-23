@@ -182,6 +182,18 @@ export function DocsArticle(props: DocsArticleProps) {
         </p>
       </section>
 
+      <section id='desktop-clients' className={sectionClassName}>
+        <div>
+          <h2 className='text-2xl font-semibold'>{t('Desktop clients')}</h2>
+          <p className='text-muted-foreground mt-2 leading-7'>
+            {t(
+              'Download our macOS desktop clients for Claude and ChatGPT, then use the Base URL and API key above to connect.'
+            )}
+          </p>
+        </div>
+        <ClientDownloadButton />
+      </section>
+
       <section id='cursor' className={sectionClassName}>
         <div>
           <h2 className='text-2xl font-semibold'>{t('Cursor setup')}</h2>
@@ -251,18 +263,6 @@ export function DocsArticle(props: DocsArticleProps) {
         >
           {t('Official documentation')}
         </a>
-      </section>
-
-      <section id='desktop-clients' className={sectionClassName}>
-        <div>
-          <h2 className='text-2xl font-semibold'>{t('Desktop clients')}</h2>
-          <p className='text-muted-foreground mt-2 leading-7'>
-            {t(
-              'Download our macOS desktop clients for Claude and ChatGPT, then use the Base URL and API key above to connect.'
-            )}
-          </p>
-        </div>
-        <ClientDownloadButton />
       </section>
 
       <section id='models' className={sectionClassName}>

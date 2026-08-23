@@ -83,6 +83,18 @@ test('renders separate section navigation and on-page navigation landmarks', asy
   assert.equal(sectionLandmarks.item(0).querySelectorAll('a').length, 7)
   assert.equal(sectionLandmarks.item(1).querySelectorAll('a').length, 7)
   assert.equal(onPageLandmarks.item(0).querySelectorAll('a').length, 6)
+  assert.deepEqual(
+    [...sectionLandmarks.item(1).querySelectorAll('a')]
+      .slice(0, 4)
+      .map((link) => link.getAttribute('href')),
+    ['#overview', '#getting-started', '#desktop-clients', '#cursor']
+  )
+  assert.deepEqual(
+    [...onPageLandmarks.item(0).querySelectorAll('a')]
+      .slice(0, 3)
+      .map((link) => link.getAttribute('href')),
+    ['#getting-started', '#desktop-clients', '#cursor']
+  )
   assert.equal(
     sectionLandmarks
       .item(1)

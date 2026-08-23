@@ -73,6 +73,20 @@ func tamperDashboardToken(token string) string {
 	return token[:tamperAt] + replacement + token[tamperAt+1:]
 }
 
+func TestOptionalTokenAuthKeepsAnonymousRequestsPublic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.GET("/v1/models", OptionalTokenAuth(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
 func createMiddlewarePATUser(t *testing.T, username, token string) *model.User {
 	t.Helper()
 	user := &model.User{

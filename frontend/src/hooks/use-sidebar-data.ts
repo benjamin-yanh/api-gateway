@@ -99,6 +99,12 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Redeem Card'),
+            url: '/wallet#redemption-code',
+            configUrls: ['/wallet'],
+            icon: Ticket,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,

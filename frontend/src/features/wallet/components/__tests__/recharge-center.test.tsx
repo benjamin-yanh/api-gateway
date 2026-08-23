@@ -49,6 +49,7 @@ const { QueryClient, QueryClientProvider } =
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { RechargeCenterHero } = await import('../recharge-center-hero')
+const { RechargeFormCard } = await import('../recharge-form-card')
 const { RedemptionHistoryCard } = await import('../redemption-history-card')
 const { redemptionCardHistoryQueryKey } = await import('../../query-keys')
 
@@ -128,4 +129,57 @@ test('redemption history renders only the 10 records returned by the API', async
   await act(async () => root.unmount())
   container.remove()
   queryClient.clear()
+})
+
+test('redemption becomes the primary card when online topup is unavailable', async () => {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+
+  await act(async () => {
+    root.render(
+      <I18nextProvider i18n={i18n}>
+        <RechargeFormCard
+          topupInfo={{
+            enable_online_topup: false,
+            enable_stripe_topup: false,
+            pay_methods: [],
+            min_topup: 1,
+            stripe_min_topup: 1,
+            amount_options: [],
+            discount: {},
+            enable_redemption: true,
+          }}
+          presetAmounts={[]}
+          selectedPreset={null}
+          onSelectPreset={() => undefined}
+          topupAmount={0}
+          onTopupAmountChange={() => undefined}
+          paymentAmount={0}
+          calculating={false}
+          onPaymentMethodSelect={() => undefined}
+          paymentLoading={null}
+          redemptionCode=''
+          onRedemptionCodeChange={() => undefined}
+          onRedeem={() => undefined}
+          redeeming={false}
+        />
+      </I18nextProvider>
+    )
+  })
+
+  assert.equal(container.textContent?.includes('Add Funds'), false)
+  assert.equal(
+    container.textContent?.includes('Online topup is not enabled.'),
+    false
+  )
+  assert.equal(container.textContent?.includes('Have a Code?'), true)
+  assert.ok(
+    container.querySelector<HTMLInputElement>(
+      'input[placeholder="Enter your redemption code"]'
+    )
+  )
+
+  await act(async () => root.unmount())
+  container.remove()
 })

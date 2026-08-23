@@ -11,8 +11,8 @@ import { startTransition, useEffect, useState } from 'react'
 const sectionIds = [
   'overview',
   'getting-started',
-  'cursor',
   'desktop-clients',
+  'cursor',
   'models',
   'protocols',
   'routing',

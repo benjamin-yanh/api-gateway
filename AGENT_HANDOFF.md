@@ -19,6 +19,11 @@ The control plane owns database migrations, authentication, dashboard APIs, and
 scheduled jobs. The data plane owns model discovery and relay traffic. Both planes
 must use the same database, Redis, session secret, and crypto secret.
 
+The control-plane systemd unit binds to `127.0.0.1:3001`. Deployment readiness
+checks on the control host must poll `http://127.0.0.1:3001/api/status`; polling
+port `3000` incorrectly times out and triggers rollback even when the new binary
+started successfully.
+
 Production is reachable through both HTTP and HTTPS on `101.132.177.78`. HTTPS
 validation by IP may require `curl -k` because certificate hostname validation and
 IP certificates are separate concerns.
@@ -133,7 +138,10 @@ installed.
 
 ### Data-plane model APIs
 
-- `GET /v1/models` is public model discovery and must not require `x-api-key`.
+- `GET /v1/models` remains public when `Authorization` is absent. When an
+  `Authorization` API key is supplied, it is validated and the response is
+  restricted by that token's group and model limits. Invalid supplied keys
+  receive the normal authentication error.
 - `GET /v1/models` filters its response with the same client detection used by
   password login: Claude/Anthropic clients receive Claude-family models; Codex,
   ChatGPT, and OpenAI clients receive OpenAI-family models; unidentified clients

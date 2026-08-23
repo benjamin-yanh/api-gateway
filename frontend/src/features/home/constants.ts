@@ -29,7 +29,7 @@ export const CLIENT_DOWNLOADS = [
   {
     id: 'claude',
     filename: 'G同学-Claude.dmg',
-    url: 'https://1drv.ms/u/c/cd526840955bb684/IQD4NJwmglOhTr4hqvsUzW5mAeyKxr6ztBRwvcGdF_pR4ZU?e=g1f0R4',
+    url: 'https://1drv.ms/u/c/cd526840955bb684/IQBPf3W1DKK0R7zqiGt4_4PKAWnDsRhPkzUGoCDGw-HB8EE?e=IGJMNq',
   },
   {
     id: 'chatgpt',

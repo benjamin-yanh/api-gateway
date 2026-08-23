@@ -104,7 +104,7 @@ export function DeleteAccountDialog({
         </>
       }
       description={t(
-        'This will deactivate your account and sign you out. Your account data will be retained.'
+        'All your data will be permanently deleted after 30 days.'
       )}
       contentClassName='sm:max-w-md'
       titleClassName='text-destructive flex items-center gap-2'

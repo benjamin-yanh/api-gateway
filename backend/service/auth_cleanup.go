@@ -8,7 +8,11 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-const authArtifactCleanupInterval = time.Hour
+const (
+	authArtifactCleanupInterval = time.Hour
+	softDeletedUserRetention    = 30 * 24 * time.Hour
+	softDeletedUserCleanupBatch = 100
+)
 
 // StartAuthArtifactCleanup removes expired dashboard Sessions and old
 // one-time authentication flows. Only the master instance performs cleanup.
@@ -47,5 +51,18 @@ func cleanupAuthArtifacts() {
 	}
 	if err := model.DeleteExpiredAuthFlows(now); err != nil {
 		common.SysError("failed to delete expired authentication flows: " + err.Error())
+	}
+	for {
+		purged, err := model.PurgeSoftDeletedUsersBefore(
+			now.Add(-softDeletedUserRetention),
+			softDeletedUserCleanupBatch,
+		)
+		if err != nil {
+			common.SysError("failed to purge expired soft-deleted users: " + err.Error())
+			return
+		}
+		if purged < softDeletedUserCleanupBatch {
+			return
+		}
 	}
 }

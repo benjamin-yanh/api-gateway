@@ -19,7 +19,7 @@ func SetRelayRouter(router *gin.Engine) {
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
 	{
-		modelsRouter.GET("", func(c *gin.Context) {
+		modelsRouter.GET("", middleware.OptionalTokenAuth(), func(c *gin.Context) {
 			switch {
 			case c.GetHeader("x-api-key") != "" && c.GetHeader("anthropic-version") != "":
 				controller.ListModels(c, constant.ChannelTypeAnthropic)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -481,6 +482,28 @@ func SoftDeleteUserById(id int) (err error) {
 	}
 	user := User{Id: id}
 	return user.Delete()
+}
+
+func PurgeSoftDeletedUsersBefore(cutoff time.Time, limit int) (int, error) {
+	if limit <= 0 {
+		return 0, errors.New("limit 必须大于 0")
+	}
+
+	var userIds []int
+	if err := DB.Unscoped().Model(&User{}).
+		Where("deleted_at IS NOT NULL AND deleted_at <= ?", cutoff).
+		Order("deleted_at").
+		Limit(limit).
+		Pluck("id", &userIds).Error; err != nil {
+		return 0, err
+	}
+
+	for index, id := range userIds {
+		if err := HardDeleteUserById(id); err != nil {
+			return index, err
+		}
+	}
+	return len(userIds), nil
 }
 
 func HardDeleteUserById(id int) error {

@@ -142,6 +142,7 @@ export function RechargeFormCard({
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
+  const redemptionIsPrimary = !hasAnyTopup
 
   if (loading) {
     return (
@@ -196,13 +197,23 @@ export function RechargeFormCard({
 
   return (
     <TitledCard
-      title={t('Add Funds')}
-      description={t('Choose an amount and payment method')}
-      icon={<WalletCards className='h-4 w-4' />}
-      iconTone='success'
+      title={t(redemptionIsPrimary ? 'Have a Code?' : 'Add Funds')}
+      description={t(
+        redemptionIsPrimary
+          ? 'Enter your redemption code'
+          : 'Choose an amount and payment method'
+      )}
+      icon={
+        redemptionIsPrimary ? (
+          <Gift className='h-4 w-4' />
+        ) : (
+          <WalletCards className='h-4 w-4' />
+        )
+      }
+      iconTone={redemptionIsPrimary ? 'warning' : 'success'}
       disableHoverEffect
       action={
-        onOpenBilling ? (
+        onOpenBilling && hasAnyTopup ? (
           <Button
             variant='outline'
             size='sm'
@@ -217,7 +228,7 @@ export function RechargeFormCard({
       contentClassName='space-y-4 sm:space-y-6'
     >
       {/* Online Topup Section */}
-      {hasAnyTopup ? (
+      {hasAnyTopup && (
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
@@ -477,14 +488,6 @@ export function RechargeFormCard({
             </>
           )}
         </div>
-      ) : (
-        <Alert>
-          <AlertDescription>
-            {t(
-              'Online topup is not enabled. Please use redemption code or contact administrator.'
-            )}
-          </AlertDescription>
-        </Alert>
       )}
 
       {/* Creem Products Section */}
@@ -505,16 +508,30 @@ export function RechargeFormCard({
 
       {/* Redemption Code Section */}
       {redemptionEnabled ? (
-        <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
+        <div
+          className={cn(
+            'space-y-2.5 sm:space-y-3',
+            redemptionIsPrimary
+              ? 'border-primary/20 from-primary/10 rounded-2xl border bg-gradient-to-br to-violet-50/70 p-4 shadow-sm sm:p-5 dark:to-violet-950/20'
+              : 'border-t pt-4 sm:pt-6'
+          )}
+        >
           <div className='flex items-center gap-2'>
-            <IconBadge tone='warning' size='xs'>
+            <IconBadge
+              tone='warning'
+              size={redemptionIsPrimary ? 'sm' : 'xs'}
+            >
               <Gift />
             </IconBadge>
             <Label
               htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+              className={cn(
+                'text-muted-foreground text-xs font-medium tracking-wider uppercase',
+                redemptionIsPrimary &&
+                  'text-foreground text-sm font-semibold tracking-normal normal-case'
+              )}
             >
-              {t('Have a Code?')}
+              {t(redemptionIsPrimary ? 'Redemption Code' : 'Have a Code?')}
             </Label>
           </div>
           <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
@@ -523,13 +540,20 @@ export function RechargeFormCard({
               value={redemptionCode}
               onChange={(e) => onRedemptionCodeChange(e.target.value)}
               placeholder={t('Enter your redemption code')}
-              className='h-9 min-w-0'
+              className={cn(
+                'min-w-0',
+                redemptionIsPrimary
+                  ? 'border-primary/30 bg-background h-11 text-base shadow-sm'
+                  : 'h-9'
+              )}
             />
             <Button
               onClick={onRedeem}
               disabled={redeeming}
-              variant='outline'
-              className='h-9 px-4'
+              variant={redemptionIsPrimary ? 'default' : 'outline'}
+              className={cn(
+                redemptionIsPrimary ? 'h-11 px-6' : 'h-9 px-4'
+              )}
             >
               {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {t('Redeem')}

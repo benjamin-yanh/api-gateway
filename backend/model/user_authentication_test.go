@@ -103,6 +103,36 @@ func TestSoftDeleteUserRetainsAccountAndAuthenticationData(t *testing.T) {
 	}
 }
 
+func TestPurgeSoftDeletedUsersOnlyRemovesAccountsPastRetention(t *testing.T) {
+	truncateTables(t)
+
+	oldUser := User{Username: "expired-soft-delete", Password: "password", AuthVersion: 1, AffCode: "expired-soft-delete-aff"}
+	recentUser := User{Username: "recent-soft-delete", Password: "password", AuthVersion: 1, AffCode: "recent-soft-delete-aff"}
+	require.NoError(t, DB.Create(&oldUser).Error)
+	require.NoError(t, DB.Create(&recentUser).Error)
+	require.NoError(t, DB.Create(&Token{UserId: oldUser.Id, Key: "expired-soft-delete-token"}).Error)
+	require.NoError(t, SoftDeleteUserById(oldUser.Id))
+	require.NoError(t, SoftDeleteUserById(recentUser.Id))
+
+	now := time.Now()
+	require.NoError(t, DB.Unscoped().Model(&User{}).Where("id = ?", oldUser.Id).
+		Update("deleted_at", now.Add(-31*24*time.Hour)).Error)
+	require.NoError(t, DB.Unscoped().Model(&User{}).Where("id = ?", recentUser.Id).
+		Update("deleted_at", now.Add(-29*24*time.Hour)).Error)
+
+	purged, err := PurgeSoftDeletedUsersBefore(now.Add(-30*24*time.Hour), 100)
+	require.NoError(t, err)
+	assert.Equal(t, 1, purged)
+
+	var count int64
+	require.NoError(t, DB.Unscoped().Model(&User{}).Where("id = ?", oldUser.Id).Count(&count).Error)
+	assert.Zero(t, count)
+	require.NoError(t, DB.Unscoped().Model(&Token{}).Where("user_id = ?", oldUser.Id).Count(&count).Error)
+	assert.Zero(t, count)
+	require.NoError(t, DB.Unscoped().Model(&User{}).Where("id = ?", recentUser.Id).Count(&count).Error)
+	assert.EqualValues(t, 1, count)
+}
+
 func TestHardDeleteUserPublishesTombstoneAndPurgesAuthenticationData(t *testing.T) {
 	truncateTables(t)
 	server := useUserCacheMiniRedis(t)

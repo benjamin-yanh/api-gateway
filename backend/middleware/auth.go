@@ -482,6 +482,19 @@ func TokenAuth() func(c *gin.Context) {
 	}
 }
 
+// OptionalTokenAuth authenticates requests that provide an Authorization header
+// while preserving public access for requests without one.
+func OptionalTokenAuth() func(c *gin.Context) {
+	tokenAuth := TokenAuth()
+	return func(c *gin.Context) {
+		if strings.TrimSpace(c.GetHeader("Authorization")) == "" {
+			c.Next()
+			return
+		}
+		tokenAuth(c)
+	}
+}
+
 func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {
 	if token == nil {
 		return fmt.Errorf("token is nil")
