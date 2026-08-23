@@ -34,10 +34,10 @@ export function HeroActions() {
     >
       <Button
         size='lg'
-        className='h-16 w-full justify-start gap-0 bg-foreground p-1 text-base font-semibold text-background shadow-sm hover:bg-foreground/90 sm:text-lg'
+        className='bg-foreground text-background hover:bg-foreground/90 h-16 w-full justify-start gap-0 p-1 text-base font-semibold shadow-sm sm:text-lg'
         render={<Link to='/keys' />}
       >
-        <span className='flex h-full w-14 shrink-0 items-center justify-center rounded-md bg-background text-foreground [&_svg]:size-6'>
+        <span className='bg-background text-foreground flex h-full w-14 shrink-0 items-center justify-center rounded-md [&_svg]:size-6'>
           <HugeiconsIcon icon={Key01Icon} aria-hidden='true' strokeWidth={2} />
         </span>
         <span className='flex-1 px-3 text-center'>{t('Get API Key')}</span>
@@ -46,11 +46,11 @@ export function HeroActions() {
       <Button
         variant='outline'
         size='lg'
-        className='relative h-16 w-full border-2 bg-background text-base font-semibold shadow-sm hover:bg-muted sm:text-lg'
+        className='bg-background hover:bg-muted relative h-16 w-full border-2 text-base font-semibold shadow-sm sm:text-lg'
         render={<Link to='/docs' hash='desktop-clients' />}
       >
         {t('Download Client')}
-        <Badge className='absolute -top-3 right-4 bg-foreground text-background shadow-sm'>
+        <Badge className='bg-foreground text-background absolute -top-3 right-4 shadow-sm'>
           {t('Installation guide')}
         </Badge>
       </Button>

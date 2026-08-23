@@ -50,12 +50,8 @@ const { createRoot } = await import('react-dom/client')
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { HeroActions } = await import('../hero-actions')
-const {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} = await import('@tanstack/react-router')
+const { createMemoryHistory, createRootRoute, createRouter, RouterProvider } =
+  await import('@tanstack/react-router')
 
 const i18n = createInstance()
 await i18n.use(initReactI18next).init({
