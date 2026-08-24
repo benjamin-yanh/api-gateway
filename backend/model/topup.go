@@ -19,6 +19,7 @@ type TopUp struct {
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	UpstreamTradeNo *string `json:"-" gorm:"type:varchar(255);uniqueIndex"`
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
@@ -45,7 +46,76 @@ var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrTopUpAmountMismatch   = errors.New("topup payment amount mismatch")
 )
+
+// SettleEpayTopUp verifies the signed callback against the locally-created
+// order and credits quota in the same transaction that marks it successful.
+// The upstream trade number is unique, preventing replay against another order.
+func SettleEpayTopUp(tradeNo, upstreamTradeNo, paymentMethod, paidMoney string) (*TopUp, int, error) {
+	if tradeNo == "" || upstreamTradeNo == "" {
+		return nil, 0, errors.New("支付单号不能为空")
+	}
+	paid, err := decimal.NewFromString(paidMoney)
+	if err != nil || paid.IsNegative() {
+		return nil, 0, ErrTopUpAmountMismatch
+	}
+
+	var settled TopUp
+	quotaToAdd := 0
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&settled).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if settled.PaymentProvider != PaymentProviderEpay || settled.PaymentMethod != paymentMethod {
+			return ErrPaymentMethodMismatch
+		}
+		if settled.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if settled.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+		expected := decimal.NewFromFloat(settled.Money).Round(2)
+		if !paid.Round(2).Equal(expected) {
+			return ErrTopUpAmountMismatch
+		}
+		quotaToAdd = common.QuotaFromDecimal(decimal.NewFromInt(settled.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+		completedAt := common.GetTimestamp()
+		claim := tx.Model(&TopUp{}).
+			Where("id = ? AND status = ?", settled.Id, common.TopUpStatusPending).
+			Updates(map[string]any{
+				"upstream_trade_no": upstreamTradeNo,
+				"complete_time":     completedAt,
+				"status":            common.TopUpStatusSuccess,
+			})
+		if claim.Error != nil {
+			return claim.Error
+		}
+		if claim.RowsAffected != 1 {
+			quotaToAdd = 0
+			return nil
+		}
+		settled.UpstreamTradeNo = &upstreamTradeNo
+		settled.CompleteTime = completedAt
+		settled.Status = common.TopUpStatusSuccess
+		result := tx.Model(&User{}).Where("id = ?", settled.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("充值用户不存在")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return &settled, quotaToAdd, nil
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error

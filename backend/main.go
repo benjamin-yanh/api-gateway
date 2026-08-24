@@ -210,7 +210,7 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			log.Println(http.ListenAndServe("127.0.0.1:8005", nil))
 		})
 		go common.Monitor()
 		common.SysLog("pprof enabled")
@@ -235,6 +235,7 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
+	server.Use(middleware.SecurityHeaders())
 	server.Use(middleware.I18n())
 	if role.hasDataPlane() {
 		server.Use(middleware.AccessLog())

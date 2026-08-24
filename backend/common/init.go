@@ -47,20 +47,25 @@ func InitEnv() {
 		os.Exit(0)
 	}
 
-	if os.Getenv("SESSION_SECRET") != "" {
-		ss := os.Getenv("SESSION_SECRET")
-		if ss == "random_string" {
-			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
-			log.Println("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
-			log.Fatal("Please set SESSION_SECRET to a random string.")
-		} else {
-			SessionSecret = ss
+	configuredSessionSecret := os.Getenv("SESSION_SECRET")
+	configuredCryptoSecret := os.Getenv("CRYPTO_SECRET")
+	if configuredSessionSecret != "" {
+		if err := validateConfiguredSecret("SESSION_SECRET", configuredSessionSecret); err != nil {
+			log.Fatal(err)
 		}
+		SessionSecret = configuredSessionSecret
 	}
-	if os.Getenv("CRYPTO_SECRET") != "" {
-		CryptoSecret = os.Getenv("CRYPTO_SECRET")
-	} else {
-		CryptoSecret = SessionSecret
+	if configuredCryptoSecret != "" {
+		if err := validateConfiguredSecret("CRYPTO_SECRET", configuredCryptoSecret); err != nil {
+			log.Fatal(err)
+		}
+		CryptoSecret = configuredCryptoSecret
+	}
+	if configuredSessionSecret != "" && configuredCryptoSecret == "" {
+		log.Println("WARNING: CRYPTO_SECRET is not configured; using an ephemeral independent key. Configure it before running multiple instances or restarting encrypted state.")
+	}
+	if configuredSessionSecret != "" && configuredSessionSecret == configuredCryptoSecret {
+		log.Fatal("SESSION_SECRET and CRYPTO_SECRET must be different")
 	}
 	if err := InitSessionCookieSettings(); err != nil {
 		log.Fatal(err)
@@ -134,6 +139,27 @@ func InitEnv() {
 	SearchRateLimitNum = GetEnvOrDefault("SEARCH_RATE_LIMIT", 10)
 	SearchRateLimitDuration = int64(GetEnvOrDefault("SEARCH_RATE_LIMIT_DURATION", 60))
 	initConstantEnv()
+}
+
+func validateConfiguredSecret(name, secret string) error {
+	if len(secret) < 32 {
+		return fmt.Errorf("%s must contain at least 32 bytes", name)
+	}
+	normalized := strings.ToLower(strings.TrimSpace(secret))
+	knownPlaceholders := []string{"random_string", "changeme", "change-me", "replace-with", "your-secret", "example-secret"}
+	for _, placeholder := range knownPlaceholders {
+		if strings.Contains(normalized, placeholder) {
+			return fmt.Errorf("%s contains a known placeholder value", name)
+		}
+	}
+	unique := make(map[rune]struct{})
+	for _, character := range secret {
+		unique[character] = struct{}{}
+	}
+	if len(unique) < 8 {
+		return fmt.Errorf("%s has insufficient character diversity", name)
+	}
+	return nil
 }
 
 func initUserSessionSettings() {

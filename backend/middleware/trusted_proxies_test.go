@@ -29,7 +29,7 @@ func newClientIPRouter() *gin.Engine {
 	return router
 }
 
-func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.T) {
+func TestConfigureTrustedProxiesDefaultsToLoopbackOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TRUSTED_PROXIES", "")
 	router := newClientIPRouter()
@@ -38,19 +38,20 @@ func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.
 	testCases := []struct {
 		name       string
 		remoteAddr string
+		want       string
 	}{
-		{name: "IPv4 loopback", remoteAddr: "127.0.0.1:12345"},
-		{name: "IPv6 loopback", remoteAddr: "[::1]:12345"},
-		{name: "10 private network", remoteAddr: "10.20.30.40:12345"},
-		{name: "172 private network", remoteAddr: "172.20.0.2:12345"},
-		{name: "192 private network", remoteAddr: "192.168.10.2:12345"},
-		{name: "IPv6 unique local network", remoteAddr: "[fd12:3456::2]:12345"},
+		{name: "IPv4 loopback", remoteAddr: "127.0.0.1:12345", want: "203.0.113.10"},
+		{name: "IPv6 loopback", remoteAddr: "[::1]:12345", want: "203.0.113.10"},
+		{name: "10 private network", remoteAddr: "10.20.30.40:12345", want: "10.20.30.40"},
+		{name: "172 private network", remoteAddr: "172.20.0.2:12345", want: "172.20.0.2"},
+		{name: "192 private network", remoteAddr: "192.168.10.2:12345", want: "192.168.10.2"},
+		{name: "IPv6 unique local network", remoteAddr: "[fd12:3456::2]:12345", want: "fd12:3456::2"},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			clientIP := requestClientIP(router, testCase.remoteAddr, "203.0.113.10")
-			assert.Equal(t, "203.0.113.10", clientIP)
+			assert.Equal(t, testCase.want, clientIP)
 		})
 	}
 }
@@ -71,8 +72,8 @@ func TestConfigureTrustedProxiesDefaultStopsAtPublicClientInForwardedChain(t *te
 	router := newClientIPRouter()
 	require.NoError(t, ConfigureTrustedProxies(router))
 
-	clientIP := requestClientIP(router, "172.20.0.2:12345", "192.0.2.99, 203.0.113.10")
-	assert.Equal(t, "203.0.113.10", clientIP, "the first public hop from the trusted proxy must win over a client-supplied prefix")
+	clientIP := requestClientIP(router, "127.0.0.1:12345", "192.0.2.99, 203.0.113.10")
+	assert.Equal(t, "203.0.113.10", clientIP, "the first public hop from the trusted loopback proxy must win over a client-supplied prefix")
 }
 
 func TestConfigureTrustedProxiesNoneDisablesForwardedHeaders(t *testing.T) {

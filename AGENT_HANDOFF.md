@@ -186,8 +186,10 @@ installed.
 - JSON, `+json`, NDJSON, and SSE response content is captured up to 1 MiB.
 - A streaming response is collected into one access-log record without delaying
   or disabling response flushing.
-- Stored headers and bodies are intentionally not redacted under the current
-  requirement. Treat administrator access to these logs as highly sensitive.
+- Stored headers, sensitive URL query parameters, and common credential fields
+  in JSON/NDJSON/SSE bodies are recursively redacted before persistence. Access
+  logs can still contain prompts and model output, so treat administrator access
+  to them as highly sensitive.
 - The administrator UI route is `/access-logs`, located below task logs in the
   sidebar. Its detail dialog shows request headers, request body, and response body
   with JSON syntax highlighting.

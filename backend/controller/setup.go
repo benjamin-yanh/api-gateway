@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"time"
 	"unicode/utf8"
 
@@ -57,9 +58,6 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
-	// Check if root user already exists
-	rootExists := model.RootUserExists()
-
 	var req SetupRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -70,8 +68,8 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
-	// If root doesn't exist, validate and create admin account
-	if !rootExists {
+	var rootUser *model.User
+	if !model.RootUserExists() {
 		email := model.NormalizeEmail(req.Email)
 		if email == "" {
 			email = model.NormalizeEmail(req.Username)
@@ -123,7 +121,7 @@ func PostSetup(c *gin.Context) {
 			})
 			return
 		}
-		rootUser := model.User{
+		rootUser = &model.User{
 			Username:    email,
 			Email:       email,
 			Password:    hashedPassword,
@@ -133,54 +131,30 @@ func PostSetup(c *gin.Context) {
 			AccessToken: nil,
 			Quota:       100000000,
 		}
-		err = model.DB.Create(&rootUser).Error
-		if err != nil {
-			c.JSON(200, gin.H{
-				"success": false,
-				"message": "创建管理员账号失败: " + err.Error(),
-			})
-			return
-		}
 	}
-
-	// Set operation modes
-	operation_setting.SelfUseModeEnabled = req.SelfUseModeEnabled
-	operation_setting.DemoSiteEnabled = req.DemoSiteEnabled
-
-	// Save operation modes to database for persistence
-	err = model.UpdateOption("SelfUseModeEnabled", boolToString(req.SelfUseModeEnabled))
-	if err != nil {
-		c.JSON(200, gin.H{
-			"success": false,
-			"message": "保存自用模式设置失败: " + err.Error(),
-		})
-		return
-	}
-
-	err = model.UpdateOption("DemoSiteEnabled", boolToString(req.DemoSiteEnabled))
-	if err != nil {
-		c.JSON(200, gin.H{
-			"success": false,
-			"message": "保存演示站点模式设置失败: " + err.Error(),
-		})
-		return
-	}
-
-	// Update setup status
-	constant.Setup = true
 
 	setup := model.Setup{
 		Version:       common.Version,
 		InitializedAt: time.Now().Unix(),
 	}
-	err = model.DB.Create(&setup).Error
+	err = model.CompleteInitialSetup(rootUser, setup, map[string]string{
+		"SelfUseModeEnabled": boolToString(req.SelfUseModeEnabled),
+		"DemoSiteEnabled":    boolToString(req.DemoSiteEnabled),
+	})
 	if err != nil {
+		if errors.Is(err, model.ErrSetupAlreadyCompleted) {
+			c.JSON(200, gin.H{"success": false, "message": "系统已经初始化完成"})
+			return
+		}
 		c.JSON(200, gin.H{
 			"success": false,
 			"message": "系统初始化失败: " + err.Error(),
 		})
 		return
 	}
+	operation_setting.SelfUseModeEnabled = req.SelfUseModeEnabled
+	operation_setting.DemoSiteEnabled = req.DemoSiteEnabled
+	constant.Setup = true
 
 	c.JSON(200, gin.H{
 		"success": true,

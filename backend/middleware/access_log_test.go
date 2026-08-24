@@ -27,7 +27,7 @@ func setupAccessLogMiddlewareTest(t *testing.T) {
 	})
 }
 
-func TestAccessLogRecordsCompleteHeadersAndJSONBodies(t *testing.T) {
+func TestAccessLogRedactsSecretsFromHeadersURLAndJSONBodies(t *testing.T) {
 	setupAccessLogMiddlewareTest(t)
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -65,20 +65,26 @@ func TestAccessLogRecordsCompleteHeadersAndJSONBodies(t *testing.T) {
 	assert.Equal(t, "POST", accessLog.Method)
 	assert.Equal(t, "/v1/test", accessLog.Route)
 	assert.Equal(t, http.StatusCreated, accessLog.Status)
-	assert.Contains(t, accessLog.Url, "api_key=query-secret")
+	assert.NotContains(t, accessLog.Url, "query-secret")
+	assert.Contains(t, accessLog.Url, "api_key=%5BREDACTED%5D")
 	assert.Contains(t, accessLog.Url, "mode=fast")
-	assert.Contains(t, accessLog.Headers, `"Authorization":["Bearer header-secret"]`)
-	assert.Contains(t, accessLog.Headers, `"X-Goog-Api-Key":["google-secret"]`)
+	assert.Contains(t, accessLog.Headers, `"Authorization":["[REDACTED]"]`)
+	assert.Contains(t, accessLog.Headers, `"X-Goog-Api-Key":["[REDACTED]"]`)
 	assert.Contains(t, accessLog.Headers, `"X-Trace":["keep-header"]`)
+	assert.NotContains(t, accessLog.Headers, "header-secret")
+	assert.NotContains(t, accessLog.Headers, "google-secret")
 	assert.JSONEq(t, `{
 		"model":"gpt-test",
-		"password":"body-secret",
-		"nested":{"access_token":"token-secret","message":"keep-me"}
+		"password":"[REDACTED]",
+		"nested":{"access_token":"[REDACTED]","message":"keep-me"}
 	}`, string(accessLog.Body))
 	assert.False(t, accessLog.BodyOmitted)
 	assert.Positive(t, accessLog.BodySize)
 	assert.Equal(t, "application/json", accessLog.ResponseBodyType)
-	assert.JSONEq(t, `{"success":true,"access_token":"response-secret"}`, string(accessLog.ResponseBody))
+	assert.JSONEq(t, `{"success":true,"access_token":"[REDACTED]"}`, string(accessLog.ResponseBody))
+	assert.NotContains(t, string(accessLog.Body), "body-secret")
+	assert.NotContains(t, string(accessLog.Body), "token-secret")
+	assert.NotContains(t, string(accessLog.ResponseBody), "response-secret")
 	assert.False(t, accessLog.ResponseBodyTruncated)
 	assert.NotEmpty(t, accessLog.RequestId)
 }
@@ -110,8 +116,9 @@ func TestAccessLogCollectsStreamingResponseInSingleRecord(t *testing.T) {
 	require.Len(t, logs, 1)
 	accessLog := logs[0]
 	assert.Equal(t, "text/event-stream", accessLog.ResponseBodyType)
-	assert.Contains(t, accessLog.ResponseBody, `data: {"type":"message_start","token":"stream-secret"}`)
-	assert.Contains(t, accessLog.ResponseBody, `data: {"type":"content_block_delta","delta":{"text":"hello"}}`)
+	assert.Contains(t, accessLog.ResponseBody, `data: {"token":"[REDACTED]","type":"message_start"}`)
+	assert.NotContains(t, accessLog.ResponseBody, "stream-secret")
+	assert.Contains(t, accessLog.ResponseBody, `data: {"delta":{"text":"hello"},"type":"content_block_delta"}`)
 	assert.Contains(t, accessLog.ResponseBody, "data: [DONE]")
 	assert.Less(t,
 		strings.Index(string(accessLog.ResponseBody), "message_start"),
