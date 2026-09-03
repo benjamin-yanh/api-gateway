@@ -179,6 +179,7 @@ func main() {
 
 		// Subscription quota reset task (daily/weekly/monthly/custom)
 		service.StartSubscriptionQuotaResetTask()
+		go runUsageCashbackRecovery()
 	}
 
 	// Report this process as a system instance so the System Info page can show
@@ -297,6 +298,20 @@ func main() {
 		model.SaveQuotaDataCache()
 	}
 	common.SysLog("server exited")
+}
+
+// Pending obligations survive configuration changes and process restarts.
+// This worker belongs only to the control plane; database operations provide
+// the idempotency needed when multiple control replicas run concurrently.
+func runUsageCashbackRecovery() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		if _, err := model.RetryCashbackUsages(100); err != nil {
+			common.SysError("usage cashback recovery: " + err.Error())
+		}
+		<-ticker.C
+	}
 }
 
 func InitResources(role serverRole) error {

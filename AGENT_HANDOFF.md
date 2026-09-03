@@ -1,6 +1,6 @@
 # Agent development and deployment handoff
 
-Last verified: 2026-08-23 (Asia/Shanghai)
+Last verified: 2026-09-03 (Asia/Shanghai)
 
 This document is the operational handoff for the customized `api-gateway`
 installation. Read it together with `AGENTS.md` before modifying or deploying the
@@ -13,7 +13,7 @@ project. It intentionally contains no passwords or complete database credentials
 | Nginx and static frontend | `101.132.177.78` | `nginx`, `/opt/new-api/web` |
 | Control plane | `101.132.177.78` | `new-api-control`, `/opt/new-api/bin/new-api-control` |
 | Data plane | `106.54.222.228` | `new-api-relay`, `/opt/new-api/bin/new-api-relay` |
-| Shared database | External MySQL | Configuration is loaded from local environment variables |
+| Shared database | AWS RDS MySQL | Database name `gtongxue`; credentials are loaded from local environment variables |
 
 The control plane owns database migrations, authentication, dashboard APIs, and
 scheduled jobs. The data plane owns model discovery and relay traffic. Both planes
@@ -24,10 +24,19 @@ checks on the control host must poll `http://127.0.0.1:3001/api/status`; polling
 port `3000` incorrectly times out and triggers rollback even when the new binary
 started successfully.
 
+The data-plane unit binds to `127.0.0.1:3002`. Check its readiness at
+`http://127.0.0.1:3002/healthz`; it does not listen on port `3000`.
+
 Production is reachable through both HTTP and HTTPS on `101.132.177.78`. HTTP
 redirects to HTTPS, so content validation must follow redirects. HTTPS validation
 by IP may require `curl -k` because certificate hostname validation and IP
 certificates are separate concerns.
+
+The Nginx control-plane proxy must not match every `/dashboard/*` path. Those are
+frontend SPA routes and direct navigation must fall back to `/index.html`. Only
+the legacy backend endpoints `/dashboard/billing/subscription` and
+`/dashboard/billing/usage` (plus their `/v1/dashboard/` variants) are proxied to
+the control plane.
 
 ### Local environment variables
 
@@ -40,10 +49,13 @@ source ~/.zshrc
 The following variables are expected:
 
 - `SSH_PASSWORD`: SSH password for the `root` account on both hosts.
-- `SQL_PUB_JDBC_CONNECTION`: external MySQL connection address.
-- `SQL_PUB_JDBC_USERNAME`: external MySQL username.
-- `SQL_PUB_JDBC_DATABASE`: external MySQL database name.
-- `SQL_PUB_JDBC_PASSWORD`: external MySQL password.
+- `GTONGXUE_CONNECTION`: current production RDS connection address.
+- `GTONGXUE_USERNAME`: current production RDS username.
+- `GTONGXUE_PASSWORD`: current production RDS password.
+- `SQL_PUB_JDBC_CONNECTION`, `SQL_PUB_JDBC_USERNAME`,
+  `SQL_PUB_JDBC_DATABASE`, and `SQL_PUB_JDBC_PASSWORD`: retained source-database
+  credentials for migration rollback only. Production was cut over to the RDS
+  database on 2026-09-01; do not point services back without an explicit rollback.
 
 Never print these values, place them in source files, commit them, or include them
 in an Agent response. The workstation has `/usr/bin/expect`; `sshpass` is not
@@ -101,6 +113,68 @@ installed.
   most recent successful card redemptions and never returns the card secret.
 - The frontend language selector and bundled translations support only English
   and Simplified Chinese.
+
+### Cashback balance and withdrawal
+
+- The wallet displays a separate cashback row below the current-balance stats.
+  `users.cashback_quota` stores withdrawable cashback in the same integer quota
+  units as `users.quota`; existing accounts start at zero after migration.
+- `POST /api/user/cashback/withdraw` requires user authentication and accepts
+  `{"method":"balance","quota":<confirmed cashback quota>}`. It transfers the
+  entire confirmed cashback balance into the current balance. Bank card, Alipay,
+  WeChat, and USDT are displayed as unavailable and rejected by the backend.
+- A conditional update clears cashback and credits quota atomically, rejecting
+  stale confirmations, repeated submissions, and int32 balance overflow. An
+  immutable receipt in `cashback_withdrawals` commits in the same transaction.
+  The Redis quota cache is incremented only after the database commit.
+- Both migration paths include `CashbackWithdrawal`. Deploy the control plane
+  first as usual so the new user column and receipt table exist before serving
+  the new wallet. Rollback must retain these columns, receipts, and balances;
+  reverting binaries must never undo completed transfers.
+- The deployed wallet feature does not introduce automatic cashback accrual or a cashback rate.
+  Cashback remains separate from affiliate rewards.
+- Model-usage cashback has a local first-version implementation documented in
+  [the reviewed PRD](backend/docs/prd/model-usage-cashback.md), including review
+  decisions, acceptance cases, implementation entry points and launch parameters.
+  It has not been deployed or enabled in production.
+
+### Model-usage cashback: local implementation, not yet deployed
+
+- The model-pricing sheet now contains independently saved input/output cashback
+  rules and global enable/cap controls. Configurations default to disabled; no
+  production cap or model reward rate has been selected.
+- The control plane owns `/api/cashback/rules`, root-only
+  `GET/PUT /api/cashback/settings`, user-owned `/api/user/cashback/records`, and
+  admin `/api/cashback/records` detail/retry/pause/refund APIs. Monetary refunds
+  require root access and a unique refund event ID. Existing withdrawal is unchanged.
+- New main-DB tables are `usage_cashback_settings`,
+  `usage_cashback_setting_revisions`, `cashback_usages`, `cashback_entries`, and
+  `cashback_refunds`. Both migration paths register them. Migrate the control
+  plane before updating the relay, which reads rule snapshots from the main DB.
+- Only eligible wallet text requests use the new durable billing path. It commits
+  wallet/token accounting together and persists the final settlement intent before
+  applying the adjustment. Raw/estimated/unknown or multimedia usage is not silently
+  treated as qualifying text. Subscriptions and external cash withdrawal are excluded.
+- Disable `BatchUpdateEnabled` on both planes and drain existing in-memory quota
+  queues before enabling cashback. The settings API and relay admission reject
+  new enabled usage while batch updates are active. This is an operational
+  prerequisite; do not toggle modes over unresolved old queues.
+- Normal settlement immediately attempts cashback credit. Control-plane recovery
+  retries up to 100 records every 30 seconds, including cache invalidation after
+  a committed transaction. Failed records rotate fairly; disabling rewards does
+  not discard already accepted obligations.
+- Reserved records without final usage, calculation/usage review cases, and
+  failed pre-consume cancellation without a persisted intent require manual
+  review. Never infer a refund or reward solely from elapsed time or a consume log.
+- Before rollback, stop new offers and retain a compatible worker until in-flight
+  requests and queued obligations have been reconciled. Preserve all new tables,
+  immutable rule versions, receipts and balances; reverting binaries must not
+  erase or duplicate monetary changes.
+- Local verification completed: full `go test ./model ./service ./controller
+  ./router`, `go build ./...`, server-role tests, 27 affected frontend tests,
+  TypeScript, targeted lint/format, and the Rsbuild production build. The reviewed
+  PRD includes reproducible frontend test commands. These are local results,
+  not a production rollout or MySQL/PostgreSQL integration sign-off.
 
 ### Login, setup, and local application authorization
 
@@ -397,9 +471,9 @@ fi
 mandatory; otherwise Nginx returns HTTP 403 for the home page even while backend
 APIs continue to work.
 
-The control plane can take approximately 10–20 seconds to become ready while it
-runs MySQL migrations. `systemctl is-active` alone is not sufficient readiness
-validation; wait for the ready log or poll `/api/status`.
+The control plane can take several minutes to become ready while it runs MySQL
+migrations against the remote RDS instance. `systemctl is-active` alone is not
+sufficient readiness validation; wait for the ready log or poll `/api/status`.
 
 Useful diagnostics:
 
@@ -449,12 +523,29 @@ for base_url in http://101.132.177.78 https://101.132.177.78; do
 done
 ```
 
-Last observed production result on 2026-08-23 (after following redirects):
+Last observed production result on 2026-09-03 (after following redirects):
 
 ```text
 http://101.132.177.78  | system_name=G同学 | title=G同学 | /v1/models=200
 https://101.132.177.78 | system_name=G同学 | title=G同学 | /v1/models=200
 ```
+
+The cashback release was deployed on 2026-09-03. Control-plane startup and
+migrations took approximately five minutes. Production checks confirmed:
+
+- `users.cashback_quota` exists as a non-null `BIGINT` on the current MySQL
+  database (GORM's integer mapping); application withdrawal limits remain int32.
+- `cashback_withdrawals` exists and no cashback balance is null or negative.
+- `/wallet` and the cashback JavaScript bundle match the local production build.
+- Unauthenticated requests to `/api/user/cashback/withdraw` return HTTP 401.
+- Model discovery requests create access logs; control-plane status requests do
+  not. All three production services are active.
+
+Retained rollback backups for this release (timestamps are server-generated):
+
+- Control binary: `/opt/new-api/bin/new-api-control.backup.20260903101827`
+- Frontend: `/opt/new-api/web.backup.20260903101827`
+- Relay binary: `/opt/new-api/bin/new-api-relay.backup.20260903102518`
 
 ## 9. Update this handoff
 

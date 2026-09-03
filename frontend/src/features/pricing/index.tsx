@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Search01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { useQuery } from '@tanstack/react-query'
 import { useDeferredValue, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,6 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getCashbackRules } from '@/features/usage-cashback/api'
 
 import { ApiPricingTable } from './components/api-pricing-table'
 import { usePricingData } from './hooks/use-pricing-data'
@@ -53,6 +55,12 @@ export function Pricing() {
   const deferredSearch = useDeferredValue(search)
   const { models, isLoading, error, priceRate, usdExchangeRate } =
     usePricingData()
+  const cashback = useQuery({
+    queryKey: ['cashback', 'rules'],
+    queryFn: getCashbackRules,
+    staleTime: 30_000,
+    retry: false,
+  })
 
   const filteredModels = useMemo(
     () => filterPricingModels(models, deferredSearch, category),
@@ -82,6 +90,8 @@ export function Pricing() {
         models={filteredModels}
         priceRate={priceRate}
         usdExchangeRate={usdExchangeRate}
+        cashbackRules={cashback.data}
+        cashbackUnavailable={cashback.isError}
       />
     )
   }

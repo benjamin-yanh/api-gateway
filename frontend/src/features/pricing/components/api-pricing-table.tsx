@@ -33,6 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { CashbackRule } from '@/features/usage-cashback/components/cashback-rule'
+import type { CashbackSettings } from '@/features/usage-cashback/types'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import {
@@ -50,6 +52,8 @@ type ApiPricingTableProps = {
   models: PricingModel[]
   priceRate: number
   usdExchangeRate: number
+  cashbackRules?: CashbackSettings
+  cashbackUnavailable?: boolean
 }
 
 function PriceValue(props: { value: string; muted?: boolean }) {
@@ -92,6 +96,9 @@ export function ApiPricingTable(props: ApiPricingTableProps) {
             <TableHead className='min-w-36'>{t('Cached input')}</TableHead>
             <TableHead className='min-w-36'>{t('Output price')}</TableHead>
             <TableHead className='min-w-36 pr-5'>{t('Pricing unit')}</TableHead>
+            <TableHead className='min-w-48 pr-5'>
+              {t('Usage cashback')}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -193,6 +200,13 @@ export function ApiPricingTable(props: ApiPricingTableProps) {
                 </TableCell>
                 <TableCell className='text-muted-foreground pr-5 text-xs'>
                   {isRequestPriced ? t('per request') : t('per 1M tokens')}
+                </TableCell>
+                <TableCell className='pr-5'>
+                  <CashbackRule
+                    modelName={model.model_name}
+                    rules={props.cashbackRules}
+                    unavailable={props.cashbackUnavailable}
+                  />
                 </TableCell>
               </TableRow>
             )

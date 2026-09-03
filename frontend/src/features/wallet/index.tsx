@@ -26,6 +26,7 @@ import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
+import { CashbackCard } from './components/cashback-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
@@ -303,6 +304,12 @@ export function Wallet(props: WalletProps) {
             <RechargeCenterHero user={user} loading={userLoading} />
 
             <WalletStatsCard user={user} loading={userLoading} />
+
+            <CashbackCard
+              quota={user?.cashback_quota ?? 0}
+              loading={userLoading}
+              onSuccess={fetchUser}
+            />
 
             <div
               className={

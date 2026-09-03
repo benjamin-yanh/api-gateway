@@ -58,6 +58,7 @@ import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Label } from '@/components/ui/label'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { CashbackRecords } from '@/features/usage-cashback/components/cashback-records'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -1062,6 +1063,16 @@ export function DetailsDialog(props: DetailsDialogProps) {
         {/* Token breakdown (for consume/error types with token data) */}
         {isDisplayableType(props.log.type) && other && (
           <TokenBreakdown log={props.log} other={other} />
+        )}
+
+        {isConsume && props.open && props.log.request_id && (
+          <DetailSection label={t('Usage cashback')}>
+            <CashbackRecords
+              key={props.log.request_id}
+              requestId={props.log.request_id}
+              admin={props.isAdmin}
+            />
+          </DetailSection>
         )}
 
         {/* Billing breakdown (consume type) */}

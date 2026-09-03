@@ -189,6 +189,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relayInfo.PriceData = priceData
 	}
 
+	if err := service.CaptureUsageCashback(c, relayInfo, request); err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		return
+	}
+
 	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
 
 	if priceData.FreeModel {
