@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getCashbackRules } from '@/features/usage-cashback/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { ApiPricingTable } from './components/api-pricing-table'
 import { usePricingData } from './hooks/use-pricing-data'
@@ -50,6 +51,7 @@ const CATEGORY_LABELS: Record<PricingCategory, string> = {
 
 export function Pricing() {
   const { t } = useTranslation()
+  const isLoggedIn = useAuthStore((state) => state.auth.user !== null)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<PricingCategory>('all')
   const deferredSearch = useDeferredValue(search)
@@ -58,6 +60,7 @@ export function Pricing() {
   const cashback = useQuery({
     queryKey: ['cashback', 'rules'],
     queryFn: getCashbackRules,
+    enabled: isLoggedIn,
     staleTime: 30_000,
     retry: false,
   })

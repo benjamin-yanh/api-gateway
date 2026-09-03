@@ -61,18 +61,32 @@ try {
 import { registerHooks } from 'node:module'
 import { Window } from 'happy-dom'
 registerHooks({
+  load(url, context, nextLoad) {
+    if (url.includes('/node_modules/') && url.endsWith('.json')) {
+      return nextLoad(url, { ...context, importAttributes: { type: 'json' } })
+    }
+    return nextLoad(url, context)
+  },
   resolve(specifier, context, nextResolve) {
     try { return nextResolve(specifier, context) }
     catch (error) {
       if (error.code === 'ERR_MODULE_NOT_FOUND' && specifier.startsWith('dayjs/')) {
         return nextResolve(specifier + '.js', context)
       }
+      // Some UI packages ship extensionless ESM for bundlers.
+      if (error.url?.includes('/node_modules/') &&
+          ['ERR_UNSUPPORTED_DIR_IMPORT', 'ERR_MODULE_NOT_FOUND'].includes(error.code)) {
+        for (const suffix of ['.js', '/index.js']) {
+          try { return nextResolve(error.url + suffix, context) } catch {}
+        }
+      }
       throw error
     }
   }
 })
 const window = new Window()
-for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Node', 'Element', 'MutationObserver']) {
+globalThis.matchMedia = window.matchMedia.bind(window)
+for (const key of ['window', 'document', 'navigator', 'HTMLElement', 'Node', 'Element', 'MutationObserver', 'customElements']) {
   Object.defineProperty(globalThis, key, { configurable: true, value: window[key] })
 }
 process.on('exit', () => window.close())

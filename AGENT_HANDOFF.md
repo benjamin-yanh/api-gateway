@@ -143,7 +143,9 @@ installed.
 - The model-pricing sheet now contains independently saved input/output cashback
   rules and global enable/cap controls. Configurations default to disabled; no
   production cap or model reward rate has been selected.
-- The control plane owns `/api/cashback/rules`, root-only
+- The pricing cashback column is visible only to authenticated users. Guests do
+  not fetch rules or render cashback cells; logout immediately hides cached rules.
+- The control plane owns user-authenticated `/api/cashback/rules`, root-only
   `GET/PUT /api/cashback/settings`, user-owned `/api/user/cashback/records`, and
   admin `/api/cashback/records` detail/retry/pause/refund APIs. Monetary refunds
   require root access and a unique refund event ID. Existing withdrawal is unchanged.

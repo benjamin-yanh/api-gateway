@@ -32,7 +32,7 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
-		apiRouter.GET("/cashback/rules", middleware.HeaderNavModulePublicOrUserAuth("pricing"), middleware.DisableCache(), controller.GetUsageCashbackRules)
+		apiRouter.GET("/cashback/rules", middleware.UserAuth(), middleware.DisableCache(), controller.GetUsageCashbackRules)
 		cashbackSettingsRoute := apiRouter.Group("/cashback/settings")
 		cashbackSettingsRoute.Use(middleware.RootAuth(), middleware.DisableCache())
 		cashbackSettingsRoute.GET("", controller.GetUsageCashbackSettings)
