@@ -619,6 +619,33 @@ Deployed SHA-256 checksums:
   These backups precede the login restriction; rollback restores public rule
   access, so preserve this restriction if rolling back for another reason.
 
+### User-management cashback totals follow-up on 2026-09-03
+
+- Source commit `64d02bbde` on `codex/usage-cashback-release` adds withdrawable
+  cashback and lifetime credited cashback columns to management lists/search.
+  Control and frontend were deployed; relay was unchanged. No new database
+  column or balance mutation is required by this display feature.
+- Before activation, a read-only probe using the new model functions against
+  production MySQL verified both list and search returned non-negative balance
+  and populated lifetime fields for the current five users. It emitted no user
+  identities, credentials or individual financial amounts.
+- Full model/controller tests passed, including pending rewards, duplicate
+  credit, withdrawal, refund recovery, pagination and totals above int32. The
+  frontend regression passed for Chinese/English labels, tiny CNY amounts,
+  large totals, zero and missing values. TypeScript, lint, format, translation
+  sync and production builds passed.
+- Post-deployment HTTP/HTTPS checks passed for `/users`, existing SPA routes,
+  status, health and model discovery. User list/search reject anonymous access;
+  public prices remain accessible while cashback rules require login. Both
+  the user-management cashback bundle and frontend index match the local build.
+- Current control SHA-256:
+  `cb06ad36c1b8ae5d7db39a45dfecb55e577e322a7269df23f593074028ac046d`.
+- Current frontend index SHA-256:
+  `e1d7523f56324bf396edeab82906655dcded87eab912f5e8bf6d08e0438407b7`.
+- Retained control backup:
+  `/opt/new-api/bin/new-api-control.backup.20260903174116`.
+- Retained frontend backup: `/opt/new-api/web.backup.20260903174116`.
+
 Before enabling offers, root must choose the cap and per-model input/output rates.
 Preserve all ledger tables and balances on rollback; if offers have since been
 enabled, reconcile accepted obligations before removing the compatible worker.
