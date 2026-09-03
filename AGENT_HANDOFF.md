@@ -590,6 +590,29 @@ Deployed SHA-256 checksums:
 | Relay binary | `c99a83e8183e5eb102d639fd50617342b93b5dc7e5ee65e25a11a016f40ad885` |
 | Frontend index | `061c447ffd4a00eb9c1b2a8d5f96770599b94a9c7506a07506b0fbc5058051c7` |
 
+### Pricing cashback visibility follow-up on 2026-09-03
+
+- Source commit `49fe118c1` on `codex/usage-cashback-release` restricts the
+  pricing cashback column to signed-in users, including ordinary users. Guests
+  do not request rules; signing out removes the header and cells even when rules
+  are cached. `GET /api/cashback/rules` now always requires `UserAuth`.
+- Control and frontend were redeployed; the relay binary was unchanged. Both
+  HTTP and HTTPS verification passed: ordinary `/api/pricing` remains public,
+  anonymous cashback rules return 401, SPA routes and model discovery work, and
+  the served index/cashback bundle hashes match this build.
+- Router regression, nine affected frontend tests, TypeScript, targeted lint and
+  formatting, and production builds passed. The new UI test exercises guest,
+  ordinary-user login and logout with retained rule props.
+- Current control SHA-256:
+  `1bb088d17788ab1e098f0bb0678177f0c51257a3810b0c4eb55150f6aee60c4d`.
+- Current frontend index SHA-256:
+  `9222c1b39d5953c75c16ccf289960c62caecb4e1e594a207bfc079598e36a0d8`.
+- Retained control backup:
+  `/opt/new-api/bin/new-api-control.backup.20260903172443`.
+- Retained frontend backup: `/opt/new-api/web.backup.20260903172443`.
+  These backups precede the login restriction; rollback restores public rule
+  access, so preserve this restriction if rolling back for another reason.
+
 Before enabling offers, root must choose the cap and per-model input/output rates.
 Preserve all ledger tables and balances on rollback; if offers have since been
 enabled, reconcile accepted obligations before removing the compatible worker.
