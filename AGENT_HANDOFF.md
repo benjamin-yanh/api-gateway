@@ -131,6 +131,11 @@ installed.
   first as usual so the new user column and receipt table exist before serving
   the new wallet. Rollback must retain these columns, receipts, and balances;
   reverting binaries must never undo completed transfers.
+- Successful withdrawal receipts must remain available after the cashback
+  balance reaches zero, further rewards/refunds, and account suspension.
+  General log cleanup, upgrades and rollbacks must not delete or overwrite
+  `cashback_withdrawals`. Each receipt retains its ID, user, quota and time;
+  receipt-write failure rolls back the transfer, and retries cannot duplicate it.
 - Cashback remains separate from affiliate rewards. Model-usage accrual is now
   deployed but disabled until root configures the offer.
 - Model-usage cashback has a first-version implementation documented in
