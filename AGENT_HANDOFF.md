@@ -131,14 +131,14 @@ installed.
   first as usual so the new user column and receipt table exist before serving
   the new wallet. Rollback must retain these columns, receipts, and balances;
   reverting binaries must never undo completed transfers.
-- The deployed wallet feature does not introduce automatic cashback accrual or a cashback rate.
-  Cashback remains separate from affiliate rewards.
-- Model-usage cashback has a local first-version implementation documented in
+- Cashback remains separate from affiliate rewards. Model-usage accrual is now
+  deployed but disabled until root configures the offer.
+- Model-usage cashback has a first-version implementation documented in
   [the reviewed PRD](backend/docs/prd/model-usage-cashback.md), including review
   decisions, acceptance cases, implementation entry points and launch parameters.
-  It has not been deployed or enabled in production.
+  It was deployed on 2026-09-03; production cashback remains disabled.
 
-### Model-usage cashback: local implementation, not yet deployed
+### Model-usage cashback: deployed, offers disabled
 
 - The model-pricing sheet now contains independently saved input/output cashback
   rules and global enable/cap controls. Configurations default to disabled; no
@@ -173,8 +173,9 @@ installed.
 - Local verification completed: full `go test ./model ./service ./controller
   ./router`, `go build ./...`, server-role tests, 27 affected frontend tests,
   TypeScript, targeted lint/format, and the Rsbuild production build. The reviewed
-  PRD includes reproducible frontend test commands. These are local results,
-  not a production rollout or MySQL/PostgreSQL integration sign-off.
+  PRD includes reproducible frontend test commands. Deployment verification below
+  confirms the production MySQL migration; live accrual/refund scenarios and
+  PostgreSQL integration are not signed off by these checks.
 
 ### Login, setup, and local application authorization
 
@@ -546,6 +547,50 @@ Retained rollback backups for this release (timestamps are server-generated):
 - Control binary: `/opt/new-api/bin/new-api-control.backup.20260903101827`
 - Frontend: `/opt/new-api/web.backup.20260903101827`
 - Relay binary: `/opt/new-api/bin/new-api-relay.backup.20260903102518`
+
+### Model-usage cashback deployment on 2026-09-03
+
+- Source commit: `f82f5d86dae9ef0be3b51cb8f0d49084c451d2ec`, uploaded to
+  `origin/codex/usage-cashback-release`. The default `main` branch was not updated.
+  Automatic approval rejected publishing the accumulated changes directly to
+  `main`; the release uses a separate branch instead.
+- Control plane and frontend were activated first, followed by the relay after
+  control readiness and all five new tables were verified. Control migration and
+  readiness took approximately five minutes; there were no automatic restarts.
+- Both live processes had `BATCH_UPDATE_ENABLED` disabled. No runtime settings
+  were changed. Cashback remained disabled, with no model offers and zero new
+  cashback usage records at verification time.
+- Production MySQL contains all five new tables plus `cashback_withdrawals`.
+  No user cashback balance was null or negative. This verifies migration and
+  current invariants, not live earning/refund behavior or PostgreSQL migration.
+- HTTP redirects to HTTPS. Both entry points passed title, status, health and
+  public model discovery checks. `/wallet`, `/pricing` and `/dashboard` serve the
+  new SPA. Frontend index and cashback bundle hashes match the local build.
+- Unauthenticated HTTPS settings GET/PUT, admin/user record reads and cashback
+  withdrawal returned 401. Root-only configuration remains enforced in code.
+- Three tagged model-discovery probes produced access logs; matching control
+  status probes produced none. Control, relay and Nginx were active after rollout.
+- Pre-release checks passed: six backend package suites (`model`, `common`,
+  `service`, `controller`, `middleware`, `router`), 29 frontend tests, TypeScript,
+  Rsbuild, and Linux amd64 binaries locked to their respective split roles.
+
+Retained rollback backups (server-generated timestamps):
+
+- Control: `/opt/new-api/bin/new-api-control.backup.20260903170140`
+- Frontend: `/opt/new-api/web.backup.20260903170140`
+- Relay: `/opt/new-api/bin/new-api-relay.backup.20260903170735`
+
+Deployed SHA-256 checksums:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Control binary | `b55d9c7a968f5065d871fa3c0da3f38067fcd13510b14d29e311e4609628ae4c` |
+| Relay binary | `c99a83e8183e5eb102d639fd50617342b93b5dc7e5ee65e25a11a016f40ad885` |
+| Frontend index | `061c447ffd4a00eb9c1b2a8d5f96770599b94a9c7506a07506b0fbc5058051c7` |
+
+Before enabling offers, root must choose the cap and per-model input/output rates.
+Preserve all ledger tables and balances on rollback; if offers have since been
+enabled, reconcile accepted obligations before removing the compatible worker.
 
 ## 9. Update this handoff
 
