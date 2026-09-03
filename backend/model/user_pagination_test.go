@@ -11,6 +11,7 @@ import (
 
 func insertUsersForPaginationTest(t *testing.T, total int) {
 	t.Helper()
+	require.NoError(t, DB.AutoMigrate(&CashbackEntry{}))
 	for id := 1; id <= total; id++ {
 		user := &User{
 			Id:          id,

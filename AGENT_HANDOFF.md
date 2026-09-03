@@ -145,6 +145,12 @@ installed.
   production cap or model reward rate has been selected.
 - The pricing cashback column is visible only to authenticated users. Guests do
   not fetch rules or render cashback cells; logout immediately hides cached rules.
+- User-management list and search show current `cashback_quota` and derived
+  `cashback_history_quota`. History is the sum of immutable credit receipts,
+  including withdrawn and subsequently recovered credits, excluding pending
+  rewards. It uses int64 totals, one grouped query per page within the list
+  transaction, and introduces no stored balance column. UI copy explains the
+  gross historical amount; it is not net earnings after refunds.
 - The control plane owns user-authenticated `/api/cashback/rules`, root-only
   `GET/PUT /api/cashback/settings`, user-owned `/api/user/cashback/records`, and
   admin `/api/cashback/records` detail/retry/pause/refund APIs. Monetary refunds

@@ -114,6 +114,9 @@ type User struct {
 	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion      int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+
+	// Populated only for management lists; derived from immutable credit receipts.
+	CashbackHistoryQuota *int64 `json:"cashback_history_quota,omitempty" gorm:"-"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -377,6 +380,11 @@ func GetAllUsers(pageInfo *common.PageInfo, sortOptions ...UserSortOptions) (use
 		return nil, 0, err
 	}
 
+	if err = attachUserCashbackHistory(tx, users); err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
 	// Commit transaction
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
@@ -442,6 +450,11 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	order := resolveUserSortOptions(sortOptions)
 	err = order.Apply(query.Omit("password", "access_token")).Limit(num).Offset(startIdx).Find(&users).Error
 	if err != nil {
+		tx.Rollback()
+		return nil, 0, err
+	}
+
+	if err = attachUserCashbackHistory(tx, users); err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
