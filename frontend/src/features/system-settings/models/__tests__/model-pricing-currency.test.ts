@@ -49,6 +49,75 @@ describe('model pricing RMB editor', () => {
   test('removes floating-point drift from converted RMB prices', () => {
     assert.equal(priceFromUSD('9.999999999999571', 7), '70')
     assert.equal(priceFromUSD('0.000000001', 1), '1e-9')
+    assert.equal(priceFromUSD('1.342400000004', 1), '1.3424')
+    assert.equal(priceFromUSD('1.342399999996', 1), '1.3424')
+    assert.equal(priceFromUSD('0.000000000001', 1), '1e-12')
+    assert.equal(priceFromUSD('1.34240001', 1), '1.34240001')
+  })
+
+  test('preserves precision when saving and reopening RMB prices', () => {
+    assert.equal(priceToUSD('1.3424', 7.3), '0.18389041095890413')
+    assert.equal(priceFromUSD(priceToUSD('1.3424', 7.3), 7.3), '1.3424')
+    const initial = createInitialLaneState(
+      {
+        name: 'test-model',
+        ratio: '0.09194520547972603',
+        cacheRatio: '0.1',
+        completionRatio: '6',
+      },
+      7.3
+    )
+    assert.equal(initial.promptPrice, '1.3424')
+    assert.equal(initial.prices.cache, '0.13424')
+    assert.equal(initial.prices.completion, '8.0544')
+  })
+
+  test('normalizes saved prices across all token lanes and the preview', () => {
+    const initial = createInitialLaneState(
+      {
+        name: 'gpt-5.6-terra',
+        ratio: '0.919452054794',
+        completionRatio: '6',
+        cacheRatio: '0.1',
+        createCacheRatio: '1.25',
+        imageRatio: '1.25',
+        audioRatio: '1.25',
+        audioCompletionRatio: '4.8',
+      },
+      7.3
+    )
+
+    assert.equal(initial.promptPrice, '13.424')
+    assert.deepEqual(initial.prices, {
+      completion: '80.544',
+      cache: '1.3424',
+      createCache: '16.78',
+      image: '16.78',
+      audioInput: '16.78',
+      audioOutput: '80.544',
+    })
+    const rows = buildPreviewRows(
+      { name: 'gpt-5.6-terra' },
+      'per-token',
+      '',
+      '',
+      initial.promptPrice,
+      initial.prices,
+      initial.enabled,
+      t
+    )
+    assert.deepEqual(
+      rows.map((row) => row.value),
+      [
+        '￥13.424',
+        '￥80.544',
+        '￥1.3424',
+        '￥16.78',
+        '￥16.78',
+        '￥16.78',
+        '￥80.544',
+      ]
+    )
   })
 
   test('uses the full-width RMB symbol in the preview', () => {

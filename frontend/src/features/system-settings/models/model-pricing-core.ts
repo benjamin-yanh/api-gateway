@@ -20,7 +20,7 @@ import * as z from 'zod'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 
-import { formatPricingNumber } from './pricing-format'
+import { formatPricingNumber, serializePricingNumber } from './pricing-format'
 
 export const createModelPricingSchema = (t: (key: string) => string) =>
   z.object({
@@ -167,7 +167,7 @@ export function priceToUSD(value: unknown, usdExchangeRate: number): string {
   const num = toNumberOrNull(value)
   if (num === null) return ''
   const rate = usdExchangeRate > 0 ? usdExchangeRate : 1
-  return formatPricingNumber(num / rate)
+  return serializePricingNumber(num / rate)
 }
 
 function ratioToBasePrice(ratio: unknown, usdExchangeRate: number): string {
