@@ -132,10 +132,12 @@ func Distribute() func(c *gin.Context) {
 						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
 						//	message = "数据库一致性已被破坏，请联系管理员"
 						//}
+						service.NotifyRelayFailure(service.RelayAlert{Model: modelRequest.Model, Group: usingGroup, Status: http.StatusServiceUnavailable, Code: string(types.ErrorCodeModelNotFound), RequestID: c.GetString(common.RequestIdKey)})
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
 						return
 					}
 					if channel == nil {
+						service.NotifyRelayFailure(service.RelayAlert{Model: modelRequest.Model, Group: usingGroup, Status: http.StatusServiceUnavailable, Code: string(types.ErrorCodeModelNotFound), RequestID: c.GetString(common.RequestIdKey)})
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}

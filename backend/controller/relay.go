@@ -95,6 +95,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		// 将所有提前返回统一转换为 relayFormat 对应的客户端错误协议。
 		if newAPIError != nil {
+			service.NotifyRelayFailure(service.RelayAlert{Model: common.GetContextKeyString(c, constant.ContextKeyOriginalModel), Group: common.GetContextKeyString(c, constant.ContextKeyUsingGroup), Status: newAPIError.StatusCode, Code: string(newAPIError.GetErrorCode()), RequestID: requestId})
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
