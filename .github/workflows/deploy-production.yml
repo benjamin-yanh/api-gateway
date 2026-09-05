@@ -54,6 +54,7 @@ jobs:
         working-directory: source/frontend
         run: |
           bun install --frozen-lockfile
+          bun add --dev --no-save esbuild@0.21.5
           bun run typecheck
           bun run lint
           mapfile -d '' tests < <(git ls-files -z -- 'src/**/*.test.ts' 'src/**/*.test.tsx' 'src/**/*.test.js' 'src/**/*.test.mjs')
