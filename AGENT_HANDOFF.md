@@ -679,10 +679,25 @@ or deployment steps change, update this file in the same change. Do not place li
 secrets in the document.
 
 
-### Pending change: optional cashback cap (2026-09-05)
+### Optional cashback cap deployment (2026-09-05)
 
-The working-tree change allows an empty `max_ratio` to mean no percentage cap.
-Deploy both control and relay binaries before enabling such offers, then deploy
-its frontend. Existing request snapshots keep their original cap. Overflow and
+Commit `4e8b2527e` allows an empty `max_ratio` to mean no percentage cap.
+Control, relay and frontend were deployed in that order on 2026-09-05.
+Control readiness took approximately eight minutes during database schema checks,
+with no automatic restarts. No cashback settings were changed by deployment. Existing request snapshots keep their original cap. Overflow and
 zero-charge guards remain. Refunds whose recovery exceeds available cashback
 plus the refund amount remain atomic conflicts requiring manual handling.
+
+
+Rollback backups for the optional-cap release:
+- Control: `/opt/new-api/bin/new-api-control.backup.20260905131211`
+- Relay: `/opt/new-api/bin/new-api-relay.backup.20260905131956`
+- Frontend: `/opt/new-api/web.backup.20260905132019`
+
+Deployed SHA-256:
+- Control: `9f5716f76dbbb79bbb0ca9511148082b6f07655206913d96a68c863426fc5056`
+- Relay: `3a69b9ce835f2035af17d3b0abf732d25a03b9e4cb843d25df0b0262796a430c`
+- Frontend index: `6dbd77e7d49043c4531460762542f9e9ef8b3cfd7ae756762c907959261a018d`
+
+Do not roll back to capped-only binaries after uncapped requests are accepted
+until those obligations are reconciled; old code cannot process those snapshots.
