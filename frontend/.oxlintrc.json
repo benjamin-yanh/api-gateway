@@ -202,6 +202,12 @@
         "no-console": "off",
         "prefer-node-protocol": "off"
       }
+    },
+    {
+      "files": ["electron/**/*.js"],
+      "rules": {
+        "typescript/no-require-imports": "off"
+      }
     }
   ]
 }

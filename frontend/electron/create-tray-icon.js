@@ -1,7 +1,7 @@
 // Create a simple tray icon for macOS
 // Run: node create-tray-icon.js
 
-const fs = require('fs')
+const fs = require('node:fs')
 const { createCanvas } = require('canvas')
 
 function createTrayIcon() {
@@ -34,7 +34,7 @@ function createTrayIcon() {
 // Check if canvas is installed
 try {
   createTrayIcon()
-} catch (err) {
+} catch {
   console.log('Canvas module not installed.')
   console.log(
     'For now, creating a placeholder. Install canvas with: npm install canvas'
