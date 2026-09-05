@@ -50,8 +50,12 @@ const { createRoot } = await import('react-dom/client')
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { HeroActions } = await import('../hero-actions')
-const { createMemoryHistory, createRootRoute, createRouter, RouterProvider } =
-  await import('@tanstack/react-router')
+const {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterContextProvider,
+} = await import('@tanstack/react-router')
 
 const i18n = createInstance()
 await i18n.use(initReactI18next).init({
@@ -78,7 +82,7 @@ after(() => {
 })
 
 test('offers only the API key and desktop client documentation actions', async () => {
-  const rootRoute = createRootRoute({ component: HeroActions })
+  const rootRoute = createRootRoute()
   const router = createRouter({
     routeTree: rootRoute,
     history: createMemoryHistory({ initialEntries: ['/'] }),
@@ -90,7 +94,9 @@ test('offers only the API key and desktop client documentation actions', async (
   await act(async () => {
     root.render(
       <I18nextProvider i18n={i18n}>
-        <RouterProvider router={router} />
+        <RouterContextProvider router={router}>
+          <HeroActions />
+        </RouterContextProvider>
       </I18nextProvider>
     )
   })
