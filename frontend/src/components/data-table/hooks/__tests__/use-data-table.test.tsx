@@ -54,10 +54,13 @@ reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
 let renderedColumnFilters: ColumnFiltersState | undefined
 let setNameFilter: (() => void) | undefined
 
+const tableData = [{ name: 'Ada' }]
+const tableColumns = [{ accessorKey: 'name' }]
+
 function DataTableHarness() {
   const { table } = useDataTable({
-    data: [{ name: 'Ada' }],
-    columns: [{ accessorKey: 'name' }],
+    data: tableData,
+    columns: tableColumns,
   })
 
   renderedColumnFilters = table.getState().columnFilters
