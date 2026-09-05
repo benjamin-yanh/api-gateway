@@ -655,6 +655,23 @@ Before enabling offers, root must choose the cap and per-model input/output rate
 Preserve all ledger tables and balances on rollback; if offers have since been
 enabled, reconcile accepted obligations before removing the compatible worker.
 
+### Pricing precision frontend deployment on 2026-09-05
+
+- Source commit `9d0765232` was pushed to `origin/codex/usage-cashback-release`.
+- Frontend pricing saves preserve numeric precision separately from display
+  formatting. Legacy conversion tails are normalized across input, output,
+  cache, image and audio prices and their previews. Five regression tests,
+  TypeScript, targeted lint/format and the production build passed.
+- Only static frontend assets were deployed; no backend restart or database
+  changes were required. Nginx and control health checks passed.
+- Current frontend index SHA-256:
+  `4b8c670b8f8286a4656c518b6db34a246a8453d7aa6a66ef74f331ba55be38db`.
+- Retained frontend backup: `/opt/new-api/web.backup.20260905125135`.
+- For frontend-only releases, verify the archive checksum, extract with public
+  directory/file permissions, retain the previous web directory and switch to
+  the new build. Verify the served index hash and roll back the directory on
+  failure; backend restarts are unnecessary.
+
 ## 9. Update this handoff
 
 When topology, credentials variable names, service names, paths, route ownership,
