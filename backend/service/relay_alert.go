@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -49,9 +50,14 @@ func NotifyRelayFailure(alert RelayAlert) {
 		return
 	}
 	relayAlertsOnce.Do(func() {
+		client, err := newRelayAlertClient(os.Getenv("RELAY_ALERT_PROXY_URL"))
+		if err != nil {
+			common.SysError("Invalid Telegram relay alert proxy configuration; notifications disabled")
+			return
+		}
 		relayAlerts = &relayAlertNotifier{
 			recent: make(map[string]time.Time), queue: make(chan relayAlertDelivery, 64),
-			client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+			client: client,
 		}
 		go func() {
 			for delivery := range relayAlerts.queue {
@@ -62,7 +68,23 @@ func NotifyRelayFailure(alert RelayAlert) {
 			}
 		}()
 	})
+	if relayAlerts == nil {
+		return
+	}
 	relayAlerts.enqueue(relayAlertDelivery{alert: alert, token: token, chatID: chatID}, time.Now())
+}
+
+// A dedicated transport keeps alert egress separate from upstream model traffic.
+func newRelayAlertClient(proxy string) (*http.Client, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	if proxy != "" {
+		parsed, err := url.Parse(proxy)
+		if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "http" && parsed.Scheme != "https" && parsed.Scheme != "socks5" && parsed.Scheme != "socks5h") {
+			return nil, errors.New("invalid relay alert proxy")
+		}
+		transport.Proxy = http.ProxyURL(parsed)
+	}
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, nil
 }
 
 func (n *relayAlertNotifier) enqueue(delivery relayAlertDelivery, now time.Time) bool {

@@ -3,6 +3,7 @@ package service
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -73,4 +74,28 @@ func TestRelayAlertTelegramPayloadAndFailureResponses(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRelayAlertProxyDoesNotFallBackToDirectConnection(t *testing.T) {
+	requests := make(chan string, 1)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Method + " " + r.Host
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer proxy.Close()
+	client, err := newRelayAlertClient(proxy.URL)
+	require.NoError(t, err)
+	notifier := relayAlertNotifier{client: client}
+	err = notifier.send(relayAlertDelivery{token: "123:secret", chatID: "-100123"})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "secret")
+	select {
+	case request := <-requests:
+		assert.Equal(t, "CONNECT api.telegram.org:443", request)
+	default:
+		t.Fatal("Telegram request did not use the configured proxy")
+	}
+	client, err = newRelayAlertClient("file:///secret")
+	require.Error(t, err)
+	assert.Nil(t, client)
 }

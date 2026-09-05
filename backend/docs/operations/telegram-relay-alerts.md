@@ -56,3 +56,25 @@ Bot API 官方说明：https://core.telegram.org/bots/api#sendmessage
 标识机器人主页；机器人主页不是告警频道，不可直接用作 chat_id。
 需要机器人加入目标频道且有发布权限，再设置 `RELAY_ALERT_TELEGRAM_CHAT_ID`。
 缺少频道配置时通知保持关闭，API 请求照常处理。凭据文件权限为 root:root 0600。
+
+若服务器不能直连 `api.telegram.org:443`，需在该专用 EnvironmentFile 配置
+仅用于告警的 `RELAY_ALERT_PROXY_URL`，再重启
+中转服务。不要配置仅本机可达的 `127.0.0.1` 代理，也不要关闭 TLS 校验。
+
+## AWS SSH 告警出网
+
+生产中转服务通过 `new-api-telegram-tunnel.service` 建立本机
+`127.0.0.1:18081` SOCKS 代理，复用 AWS SSH 22 端口，无需开放额外公网端口。
+`RELAY_ALERT_PROXY_URL=socks5://127.0.0.1:18081` 只配置告警 HTTP 客户端，
+不设置全局 HTTPS_PROXY，不改变模型上游请求的出网。
+
+AWS 使用独立无登录账号 `newapi-alert-egress`；专用公钥限制目的地
+`api.telegram.org:443`。私钥在中转服务器 `/etc/new-api/telegram-tunnel-key`
+生成并以 0600 保存，不复制本机管理员私钥，不将 Bot Token 传给 AWS。
+可信主机公钥经已验证的管理 SSH 连接取得并单独存放，严格校验 SSH/TLS。
+已有 AWS 项目的 443、配置、数据库和服务均不调整。
+
+隧道由 systemd 开机启动并自动重连。排障先检查隧道 active 和本机监听，
+再检查 Telegram 请求；不要把代理绑定到 0.0.0.0。回退时从告警环境文件移除
+RELAY_ALERT_PROXY_URL 并按网络情况停用告警，再停用隧道、移除 AWS 专用账号
+的授权密钥。已有业务服务不需要重启。
