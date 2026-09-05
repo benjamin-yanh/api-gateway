@@ -235,3 +235,17 @@ func TestCashbackSnapshotExcludesRequestedMediaWithoutUsageBreakdown(t *testing.
 		assert.Equal(t, "unsupported_usage", value.(*usageCashbackSnapshot).Reason)
 	}
 }
+
+func TestCashbackCalculationWithoutCap(t *testing.T) {
+	snapshot := usageCashbackSnapshot{InputPerMillion: "1", OutputPerMillion: "2", QuotaPerCNY: "100000"}
+	quota, capped, err := calculateUsageCashback(snapshot, 200000, 50000, 100)
+	require.NoError(t, err)
+	assert.Equal(t, 30000, quota)
+	assert.False(t, capped)
+	quota, _, err = calculateUsageCashback(snapshot, 200000, 50000, 0)
+	require.NoError(t, err)
+	assert.Zero(t, quota)
+	snapshot.InputPerMillion = "1000000"
+	_, _, err = calculateUsageCashback(snapshot, math.MaxInt32, 0, 100)
+	require.Error(t, err)
+}

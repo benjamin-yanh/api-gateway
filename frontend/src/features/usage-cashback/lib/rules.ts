@@ -78,11 +78,10 @@ export function createCashbackSchema(t: TFunction, supported: boolean) {
       }
       const percent = value.cap_percent
       if (
-        (!percent && value.global_enabled) ||
-        (percent !== '' &&
-          (!/^\d+(\.\d{1,4})?$/.test(percent) ||
-            Number(percent) <= 0 ||
-            Number(percent) >= 100))
+        percent !== '' &&
+        (!/^\d+(\.\d{1,4})?$/.test(percent) ||
+          Number(percent) <= 0 ||
+          Number(percent) >= 100)
       ) {
         ctx.addIssue({
           code: 'custom',

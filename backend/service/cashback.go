@@ -412,16 +412,23 @@ func calculateUsageCashback(snapshot usageCashbackSnapshot, input, output int64,
 	if err != nil || !k.IsPositive() {
 		return 0, false, errors.New("invalid cashback currency conversion")
 	}
-	x, err := decimal.NewFromString(snapshot.MaxRatio)
-	if err != nil || !x.IsPositive() || !x.LessThan(decimal.NewFromInt(1)) {
-		return 0, false, errors.New("invalid cashback cap")
+	base := decimal.NewFromInt(input).Mul(ri).Add(decimal.NewFromInt(output).Mul(ro)).Mul(k).Shift(-6)
+	capped := false
+	if snapshot.MaxRatio != "" {
+		x, err := decimal.NewFromString(snapshot.MaxRatio)
+		if err != nil || !x.IsPositive() || !x.LessThan(decimal.NewFromInt(1)) {
+			return 0, false, errors.New("invalid cashback cap")
+		}
+		cap := decimal.NewFromInt(int64(actualQuota)).Mul(x)
+		capped = base.GreaterThan(cap)
+		base = decimal.Min(base, cap)
 	}
-	base := decimal.NewFromInt(input).Mul(ri).Add(decimal.NewFromInt(output).Mul(ro)).
-		Mul(k).Shift(-6)
-	cap := decimal.NewFromInt(int64(actualQuota)).Mul(x)
-	quota, clamp := common.QuotaFromDecimalChecked(decimal.Min(base, cap).Floor())
+	if actualQuota == 0 {
+		return 0, capped, nil
+	}
+	quota, clamp := common.QuotaFromDecimalChecked(base.Floor())
 	if clamp != nil {
 		return 0, false, clamp
 	}
-	return quota, base.GreaterThan(cap), nil
+	return quota, capped, nil
 }

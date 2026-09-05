@@ -85,17 +85,9 @@ test('unsupported models cannot be enabled but existing rates can be retained wh
   assert.equal(schema.safeParse({ ...valid, enabled: false }).success, true)
 })
 
-test('global cashback requires a cap strictly between zero and one hundred percent', () => {
+test('global cashback accepts an empty cap and validates a configured percentage', () => {
   const schema = createCashbackSchema(i18n.t, true)
-  for (const cap_percent of [
-    '',
-    '0',
-    '100',
-    '100.0001',
-    '-1',
-    '1.12345',
-    '1e1',
-  ]) {
+  for (const cap_percent of ['0', '100', '100.0001', '-1', '1.12345', '1e1']) {
     assert.equal(
       schema.safeParse({ ...valid, cap_percent }).success,
       false,
@@ -103,7 +95,7 @@ test('global cashback requires a cap strictly between zero and one hundred perce
     )
   }
   assert.equal(
-    schema.safeParse({ ...valid, global_enabled: false, cap_percent: '' })
+    schema.safeParse({ ...valid, global_enabled: true, cap_percent: '' })
       .success,
     true
   )

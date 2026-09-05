@@ -164,7 +164,7 @@ func RefundCashbackUsage(id, eventID string, quota int, actorID ...int) (*Cashba
 }
 
 func validateCashbackAccounting(row CashbackUsage) error {
-	if row.ActualQuota < 0 || row.ActualQuota > math.MaxInt32 || row.OriginalQuota < 0 || (row.OriginalQuota > 0 && row.OriginalQuota >= row.ActualQuota) || row.CreditedQuota < 0 || row.CancelledQuota < 0 || int64(row.CreditedQuota)+int64(row.CancelledQuota) > int64(row.OriginalQuota) || row.RecoveredQuota < 0 || row.RecoveredQuota > row.CreditedQuota || row.RefundedQuota < 0 || row.RefundedQuota > row.ActualQuota {
+	if row.ActualQuota < 0 || row.ActualQuota > math.MaxInt32 || row.OriginalQuota < 0 || row.OriginalQuota > math.MaxInt32 || (row.ActualQuota == 0 && row.OriginalQuota > 0) || row.CreditedQuota < 0 || row.CancelledQuota < 0 || int64(row.CreditedQuota)+int64(row.CancelledQuota) > int64(row.OriginalQuota) || row.RecoveredQuota < 0 || row.RecoveredQuota > row.CreditedQuota || row.RefundedQuota < 0 || row.RefundedQuota > row.ActualQuota {
 		return ErrCashbackUsageConflict
 	}
 	return nil

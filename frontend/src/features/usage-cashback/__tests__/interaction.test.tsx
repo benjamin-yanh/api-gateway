@@ -400,3 +400,21 @@ test('refund expansion uses the admin detail endpoint and explains the net refun
     api.defaults.adapter = previous
   }
 })
+
+test('uncapped active rules show the rates and explicitly disclose no percentage cap', async () => {
+  const view = await renderCashbackUI(
+    <CashbackRule
+      modelName='text-model'
+      rules={{ ...settings, max_ratio: '' }}
+    />
+  )
+  try {
+    assert.ok(
+      view.container.textContent?.includes('1.00000001 CNY / 1M tokens')
+    )
+    assert.ok(view.container.textContent?.includes('No percentage cap.'))
+    assert.equal(view.container.textContent?.includes('capped at'), false)
+  } finally {
+    await view.cleanup()
+  }
+})

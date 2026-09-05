@@ -51,7 +51,6 @@ func TestUsageCashbackSettingsRejectInvalidFinancialRules(t *testing.T) {
 		ratio string
 		input string
 	}{
-		{"missing cap", "", "1"},
 		{"zero cap", "0", "1"},
 		{"full cap", "1", "1"},
 		{"negative cap", "-0.1", "1"},
@@ -74,6 +73,8 @@ func TestUsageCashbackSettingsRejectInvalidFinancialRules(t *testing.T) {
 	valid := UsageCashbackSettings{Enabled: true, MaxRatio: "0.999999", Models: map[string]UsageCashbackModelRule{
 		"text-model": {Enabled: true, InputPerMillion: "0.00000001", OutputPerMillion: "1000000.00000000"},
 	}}
+	require.NoError(t, ValidateUsageCashbackSettings(&valid))
+	valid.MaxRatio = ""
 	require.NoError(t, ValidateUsageCashbackSettings(&valid))
 	common.BatchUpdateEnabled = true
 	assert.EqualError(t, ValidateUsageCashbackSettings(&valid), "cashback_requires_durable_billing")

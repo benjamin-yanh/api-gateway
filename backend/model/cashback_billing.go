@@ -161,7 +161,7 @@ func ReserveCashbackUsage(id string, target int) (*CashbackUsage, error) {
 // PlanCashbackSettlement freezes final usage before the debit transaction so
 // a crashed worker can replay settlement without reading optional consume logs.
 func PlanCashbackSettlement(id string, plan CashbackSettlementPlan) (*CashbackUsage, error) {
-	if plan.ActualQuota < 0 || plan.ActualQuota > math.MaxInt32 || plan.OriginalQuota < 0 || (plan.OriginalQuota > 0 && plan.OriginalQuota >= plan.ActualQuota) || plan.InputTokens < 0 || plan.OutputTokens < 0 || plan.InputTokens > math.MaxInt32 || plan.OutputTokens > math.MaxInt32 || len(plan.UsageSource) > 128 {
+	if plan.ActualQuota < 0 || plan.ActualQuota > math.MaxInt32 || plan.OriginalQuota < 0 || plan.OriginalQuota > math.MaxInt32 || (plan.ActualQuota == 0 && plan.OriginalQuota > 0) || plan.InputTokens < 0 || plan.OutputTokens < 0 || plan.InputTokens > math.MaxInt32 || plan.OutputTokens > math.MaxInt32 || len(plan.UsageSource) > 128 {
 		return nil, ErrInvalidCashbackUsage
 	}
 	var row CashbackUsage

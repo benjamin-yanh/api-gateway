@@ -242,9 +242,14 @@ export function CashbackRecordDetails(props: {
               })}
             </p>
             <p>
-              {t('Cashback is capped at {{percent}}% of the actual charge.', {
-                percent: ratioToPercent(record.rule.max_ratio),
-              })}
+              {record.rule.max_ratio
+                ? t(
+                    'Cashback is capped at {{percent}}% of the actual charge.',
+                    { percent: ratioToPercent(record.rule.max_ratio) }
+                  )
+                : t(
+                    'No percentage cap. Cashback is calculated from actual eligible usage.'
+                  )}
             </p>
           </div>
         </details>

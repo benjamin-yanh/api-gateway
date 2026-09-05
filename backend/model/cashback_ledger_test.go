@@ -270,3 +270,33 @@ func TestCashbackRefundConcurrentWithTransferPreservesNetBalance(t *testing.T) {
 	assert.Equal(t, 2000, user.Quota)
 	assert.Zero(t, user.CashbackQuota)
 }
+
+func TestUncappedCashbackCreditsAndRefundsMoreThanCharge(t *testing.T) {
+	_, user, _ := createSettledCashback(t, 100, 300)
+	row, err := CreditCashbackUsage("usage")
+	require.NoError(t, err)
+	assert.Equal(t, 300, row.CreditedQuota)
+	repeated, err := CreditCashbackUsage("usage")
+	require.NoError(t, err)
+	assert.Equal(t, 300, repeated.CreditedQuota)
+	receipt, err := RefundCashbackUsage("usage", "refund", 100, 42)
+	require.NoError(t, err)
+	assert.Equal(t, 300, receipt.CashbackDebited)
+	assert.Equal(t, 100, receipt.WalletCredited)
+	require.NoError(t, DB.First(&user, user.Id).Error)
+	assert.Zero(t, user.CashbackQuota)
+}
+
+func TestUncappedRefundWithInsufficientRecoverableCashbackRemainsAtomic(t *testing.T) {
+	_, user, _ := createSettledCashback(t, 100, 300)
+	_, err := CreditCashbackUsage("usage")
+	require.NoError(t, err)
+	_, err = WithdrawCashbackToBalance(user.Id, 300)
+	require.NoError(t, err)
+	_, err = RefundCashbackUsage("usage", "refund", 100, 42)
+	require.ErrorIs(t, err, ErrCashbackUsageConflict)
+	row, err := GetCashbackUsage("usage", user.Id)
+	require.NoError(t, err)
+	assert.Zero(t, row.RefundedQuota)
+	assert.Zero(t, row.RecoveredQuota)
+}

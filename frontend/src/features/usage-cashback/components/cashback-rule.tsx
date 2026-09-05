@@ -69,9 +69,13 @@ export function CashbackRule(props: {
           })}
         </p>
         <p>
-          {t('Cashback is capped at {{percent}}% of the actual charge.', {
-            percent: ratioToPercent(props.rules.max_ratio),
-          })}
+          {props.rules.max_ratio
+            ? t('Cashback is capped at {{percent}}% of the actual charge.', {
+                percent: ratioToPercent(props.rules.max_ratio),
+              })
+            : t(
+                'No percentage cap. Cashback is calculated from actual eligible usage.'
+              )}
         </p>
         <p className='text-muted-foreground'>
           {t(

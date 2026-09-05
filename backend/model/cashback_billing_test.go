@@ -177,8 +177,8 @@ func TestCashbackPlanRejectsUnsafeAmounts(t *testing.T) {
 	require.NoError(t, err)
 	for _, plan := range []CashbackSettlementPlan{
 		{ActualQuota: -1}, {ActualQuota: math.MaxInt32 + 1},
-		{ActualQuota: 10, OriginalQuota: -1}, {ActualQuota: 10, OriginalQuota: 10},
-		{ActualQuota: 10, OriginalQuota: 11}, {InputTokens: -1},
+		{ActualQuota: 10, OriginalQuota: -1}, {ActualQuota: 0, OriginalQuota: 10},
+		{InputTokens: -1},
 	} {
 		_, err := PlanCashbackSettlement("bounds", plan)
 		assert.ErrorIs(t, err, ErrInvalidCashbackUsage)

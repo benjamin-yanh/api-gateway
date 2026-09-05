@@ -109,8 +109,6 @@ func ValidateUsageCashbackSettings(settings *UsageCashbackSettings) error {
 		if err != nil || !ratio.IsPositive() || !ratio.LessThan(decimal.NewFromInt(1)) {
 			return errors.New("invalid_cashback_max_ratio")
 		}
-	} else if settings.Enabled {
-		return errors.New("cashback_max_ratio_required")
 	}
 	for name, rule := range settings.Models {
 		if strings.TrimSpace(name) != name || name == "" || len(name) > 512 {

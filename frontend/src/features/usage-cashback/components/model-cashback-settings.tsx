@@ -268,7 +268,7 @@ function CashbackSettingsForm(
                   percent: values.cap_percent,
                 })
               : t(
-                  'No cashback cap configured. Global cashback cannot be enabled.'
+                  'No percentage cap. Cashback is calculated from actual eligible usage.'
                 )}
           </p>
           {!values.global_enabled && (
@@ -318,11 +318,12 @@ function CashbackSettingsForm(
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {t('Maximum cashback (% of actual charge)')}
+                      {t('Maximum cashback (% of actual charge, optional)')}
                     </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
+                        placeholder={t('Leave empty for no percentage cap')}
                         inputMode='decimal'
                         disabled={mutation.isPending}
                       />

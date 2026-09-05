@@ -677,3 +677,12 @@ enabled, reconcile accepted obligations before removing the compatible worker.
 When topology, credentials variable names, service names, paths, route ownership,
 or deployment steps change, update this file in the same change. Do not place live
 secrets in the document.
+
+
+### Pending change: optional cashback cap (2026-09-05)
+
+The working-tree change allows an empty `max_ratio` to mean no percentage cap.
+Deploy both control and relay binaries before enabling such offers, then deploy
+its frontend. Existing request snapshots keep their original cap. Overflow and
+zero-charge guards remain. Refunds whose recovery exceeds available cashback
+plus the refund amount remain atomic conflicts requiring manual handling.
