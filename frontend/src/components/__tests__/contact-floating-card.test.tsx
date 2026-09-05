@@ -94,3 +94,44 @@ test('shows the customer service QQ and Telegram group', async () => {
   await act(async () => root.unmount())
   container.remove()
 })
+
+test('minimizing hides contact details and the contact button restores them without losing focus', async () => {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+
+  try {
+    await act(async () => {
+      root.render(
+        <I18nextProvider i18n={i18n}>
+          <ContactFloatingCard />
+        </I18nextProvider>
+      )
+    })
+
+    const toggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Minimize"]'
+    )
+    assert.ok(toggle, 'The contact window must offer a minimize button')
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true')
+    toggle.focus()
+
+    await act(async () => toggle.click())
+
+    assert.doesNotMatch(container.textContent ?? '', /3138763753/)
+    assert.equal(container.querySelector('a'), null)
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false')
+    assert.equal(toggle.getAttribute('aria-label'), 'Contact us')
+    assert.equal(document.activeElement, toggle)
+
+    await act(async () => toggle.click())
+
+    assert.match(container.textContent ?? '', /3138763753/)
+    assert.equal(container.querySelector('a')?.href, 'https://t.me/gtongxue')
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true')
+    assert.equal(document.activeElement, toggle)
+  } finally {
+    await act(async () => root.unmount())
+    container.remove()
+  }
+})

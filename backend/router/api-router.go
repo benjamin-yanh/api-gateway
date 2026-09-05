@@ -32,6 +32,18 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
+		apiRouter.GET("/cashback/rules", middleware.UserAuth(), middleware.DisableCache(), controller.GetUsageCashbackRules)
+		cashbackSettingsRoute := apiRouter.Group("/cashback/settings")
+		cashbackSettingsRoute.Use(middleware.RootAuth(), middleware.DisableCache())
+		cashbackSettingsRoute.GET("", controller.GetUsageCashbackSettings)
+		cashbackSettingsRoute.PUT("", middleware.CriticalRateLimit(), controller.UpdateUsageCashbackSettings)
+		cashbackAdminRoute := apiRouter.Group("/cashback/records")
+		cashbackAdminRoute.Use(middleware.AdminAuth(), middleware.DisableCache())
+		cashbackAdminRoute.GET("", controller.GetAdminUsageCashbackRecords)
+		cashbackAdminRoute.GET("/:id", controller.GetAdminUsageCashbackRecord)
+		cashbackAdminRoute.POST("/:id/retry", middleware.CriticalRateLimit(), controller.RetryUsageCashbackRecord)
+		cashbackAdminRoute.POST("/:id/refund", middleware.RootAuth(), middleware.CriticalRateLimit(), controller.RefundUsageCashbackRecord)
+		cashbackAdminRoute.POST("/:id/pause", middleware.CriticalRateLimit(), controller.PauseUsageCashbackRecord)
 		perfMetricsRoute := apiRouter.Group("/perf-metrics")
 		perfMetricsRoute.Use(middleware.HeaderNavModulePublicOrUserAuth("pricing"))
 		{
@@ -116,6 +128,9 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.POST("/cashback/withdraw", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.WithdrawCashback)
+				selfRoute.GET("/cashback/records", middleware.DisableCache(), controller.GetMyUsageCashbackRecords)
+				selfRoute.GET("/cashback/records/:id", middleware.DisableCache(), controller.GetMyUsageCashbackRecord)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -254,7 +269,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		usageRoute := apiRouter.Group("/usage")
-		usageRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
+		usageRoute.Use(middleware.ControlPlaneCORS(), middleware.CriticalRateLimit())
 		{
 			tokenUsageRoute := usageRoute.Group("/token")
 			tokenUsageRoute.Use(middleware.TokenAuthReadOnly())
@@ -312,7 +327,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 
-		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
+		logRoute.Use(middleware.ControlPlaneCORS(), middleware.CriticalRateLimit())
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)
 		}

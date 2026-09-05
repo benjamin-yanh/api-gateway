@@ -1,0 +1,19 @@
+[Unit]
+Description=Telegram-only SSH egress for new-api alerts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ssh -NT -D 127.0.0.1:18081 -i /etc/new-api/telegram-tunnel-key -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/new-api/telegram-tunnel-known-hosts -o ExitOnForwardFailure=yes -o ConnectTimeout=15 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 newapi-alert-egress@AWS_EGRESS_HOST
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+MemoryLimit=64M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target

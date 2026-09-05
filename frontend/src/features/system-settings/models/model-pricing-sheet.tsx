@@ -61,6 +61,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ModelCashbackSettings } from '@/features/usage-cashback/components/model-cashback-settings'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
@@ -83,7 +84,7 @@ import {
   type PricingMode,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
-import { formatPricingNumber } from './pricing-format'
+import { formatPricingNumber, serializePricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
 export type { ModelRatioData } from './model-pricing-core'
@@ -245,12 +246,12 @@ export const ModelPricingEditorPanel = forwardRef<
     if (lane === 'audioOutput') {
       const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
       if (audioInputPrice === null || audioInputPrice === 0) return ''
-      return formatPricingNumber(priceNumber / audioInputPrice)
+      return serializePricingNumber(priceNumber / audioInputPrice)
     }
 
     const inputPrice = toNumberOrNull(nextPromptPrice)
     if (inputPrice === null || inputPrice === 0) return ''
-    return formatPricingNumber(priceNumber / inputPrice)
+    return serializePricingNumber(priceNumber / inputPrice)
   }
 
   const syncLaneRatios = (
@@ -262,7 +263,7 @@ export const ModelPricingEditorPanel = forwardRef<
     setFormValue(
       'ratio',
       inputPrice !== null
-        ? formatPricingNumber(inputPrice / usdExchangeRate / 2)
+        ? serializePricingNumber(inputPrice / usdExchangeRate / 2)
         : ''
     )
 
@@ -665,6 +666,10 @@ export const ModelPricingEditorPanel = forwardRef<
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>
+                <ModelCashbackSettings
+                  modelName={editData?.name ?? ''}
+                  tokenPriced={pricingMode !== 'per-request'}
+                />
               </FieldGroup>
 
               <aside className='bg-muted/20 sticky top-0 rounded-lg border'>

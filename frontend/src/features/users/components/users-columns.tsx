@@ -30,6 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatQuota, formatTimestamp } from '@/lib/format'
 
 import {
@@ -171,6 +172,43 @@ export function useUsersColumns(): ColumnDef<User>[] {
       size: 300,
       minSize: 260,
       meta: { mobileOrder: 40 },
+    },
+    {
+      accessorKey: 'cashback_quota',
+      header: t('Withdrawable cashback'),
+      cell: ({ row }) => (
+        <span className='font-mono text-sm tabular-nums'>
+          {formatQuotaWithCurrency(row.original.cashback_quota, {
+            digitsLarge: 2,
+            digitsSmall: 8,
+            abbreviate: false,
+          })}
+        </span>
+      ),
+      enableSorting: false,
+      size: 170,
+      meta: { mobileOrder: 41 },
+    },
+    {
+      accessorKey: 'cashback_history_quota',
+      header: t('Lifetime cashback'),
+      cell: ({ row }) => (
+        <span
+          className='font-mono text-sm tabular-nums'
+          title={t(
+            'Total cashback credited, including withdrawn and subsequently recovered amounts. Pending rewards are excluded.'
+          )}
+        >
+          {formatQuotaWithCurrency(row.original.cashback_history_quota, {
+            digitsLarge: 2,
+            digitsSmall: 8,
+            abbreviate: false,
+          })}
+        </span>
+      ),
+      enableSorting: false,
+      size: 170,
+      meta: { mobileOrder: 42 },
     },
     {
       accessorKey: 'group',

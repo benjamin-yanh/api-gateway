@@ -164,12 +164,16 @@ export function Features(_props: FeaturesProps) {
     {
       icon: <Gauge className='size-5' strokeWidth={1.5} />,
       title: t('Customer Service AI'),
-      desc: t('Build responsive assistants for support, sales, and service teams'),
+      desc: t(
+        'Build responsive assistants for support, sales, and service teams'
+      ),
     },
     {
       icon: <DollarSign className='size-5' strokeWidth={1.5} />,
       title: t('Knowledge Assistants'),
-      desc: t('Connect trusted models to internal knowledge and business workflows'),
+      desc: t(
+        'Connect trusted models to internal knowledge and business workflows'
+      ),
     },
     {
       icon: <Users className='size-5' strokeWidth={1.5} />,
@@ -188,14 +192,12 @@ export function Features(_props: FeaturesProps) {
   return (
     <section className='relative z-10 px-6 py-24 md:py-32'>
       <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 max-w-lg'>
+        <AnimateInView className='mb-16 max-w-3xl'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
             {t('AI Solution Capabilities')}
           </p>
-          <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl'>
-            {t('From model access to')}
-            <br />
-            {t('production-ready AI applications')}
+          <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-3xl md:whitespace-nowrap'>
+            {t('From model access to')} {t('production-ready AI applications')}
           </h2>
         </AnimateInView>
 

@@ -537,6 +537,7 @@ func buildSelfUserData(user *model.User) map[string]interface{} {
 		"telegram_id":       user.TelegramId,
 		"group":             user.Group,
 		"quota":             user.Quota,
+		"cashback_quota":    user.CashbackQuota,
 		"used_quota":        user.UsedQuota,
 		"request_count":     user.RequestCount,
 		"aff_code":          user.AffCode,

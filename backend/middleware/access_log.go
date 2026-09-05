@@ -16,6 +16,7 @@ import (
 
 const maxAccessLogJSONBodyBytes int64 = 256 << 10
 const maxAccessLogResponseBodyBytes = 1 << 20
+const accessLogRedactedValue = "[REDACTED]"
 
 type accessLogBodyReader struct {
 	io.Reader
@@ -134,6 +135,28 @@ func accessLogResponseBody(body []byte, contentType string) (string, string) {
 		return "", ""
 	}
 	bodyText := strings.ToValidUTF8(string(body), "\uFFFD")
+	if mediaType == "application/json" || strings.HasSuffix(mediaType, "+json") {
+		bodyText = redactAccessLogJSON([]byte(bodyText))
+	} else if mediaType == "application/x-ndjson" || mediaType == "text/event-stream" {
+		lines := strings.Split(bodyText, "\n")
+		for i, line := range lines {
+			prefix := ""
+			payload := line
+			if mediaType == "text/event-stream" && strings.HasPrefix(line, "data:") {
+				prefix = line[:len("data:")]
+				payload = strings.TrimSpace(line[len("data:"):])
+			}
+			if strings.HasPrefix(strings.TrimSpace(payload), "{") || strings.HasPrefix(strings.TrimSpace(payload), "[") {
+				redacted := redactAccessLogJSON([]byte(payload))
+				if prefix != "" {
+					lines[i] = prefix + " " + redacted
+				} else {
+					lines[i] = redacted
+				}
+			}
+		}
+		bodyText = strings.Join(lines, "\n")
+	}
 	return bodyText, mediaType
 }
 
@@ -172,7 +195,7 @@ func captureAccessLogJSONBody(c *gin.Context) (string, int64, bool) {
 	if err := common.Unmarshal(body, &value); err != nil {
 		return "", bodySize, false
 	}
-	return strings.ToValidUTF8(string(body), "\uFFFD"), bodySize, false
+	return redactAccessLogJSON(body), bodySize, false
 }
 
 func isJSONMediaType(contentType string) bool {
@@ -184,7 +207,13 @@ func isJSONMediaType(contentType string) bool {
 }
 
 func accessLogHeaders(headers http.Header) string {
-	encoded, err := common.Marshal(headers)
+	redacted := headers.Clone()
+	for name := range redacted {
+		if isAccessLogSensitiveKey(name) {
+			redacted[name] = []string{accessLogRedactedValue}
+		}
+	}
+	encoded, err := common.Marshal(redacted)
 	if err != nil {
 		return "{}"
 	}
@@ -195,5 +224,60 @@ func accessLogURL(requestURL *url.URL) string {
 	if requestURL == nil {
 		return ""
 	}
-	return requestURL.RequestURI()
+	copyURL := *requestURL
+	query := copyURL.Query()
+	for name := range query {
+		if isAccessLogSensitiveKey(name) {
+			query.Set(name, accessLogRedactedValue)
+		}
+	}
+	copyURL.RawQuery = query.Encode()
+	return copyURL.RequestURI()
+}
+
+func redactAccessLogJSON(data []byte) string {
+	var value any
+	if err := common.Unmarshal(data, &value); err != nil {
+		return strings.ToValidUTF8(string(data), "\uFFFD")
+	}
+	redactAccessLogValue(value)
+	encoded, err := common.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
+}
+
+func redactAccessLogValue(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			if isAccessLogSensitiveKey(key) {
+				typed[key] = accessLogRedactedValue
+				continue
+			}
+			redactAccessLogValue(child)
+		}
+	case []any:
+		for _, child := range typed {
+			redactAccessLogValue(child)
+		}
+	}
+}
+
+func isAccessLogSensitiveKey(key string) bool {
+	normalized := strings.NewReplacer("-", "", "_", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(key)))
+	for _, suffix := range []string{"authorization", "apikey", "authtoken", "accesstoken", "refreshtoken", "idtoken", "password", "passwd", "secret", "privatekey", "credential", "credentials", "signature"} {
+		if strings.HasSuffix(normalized, suffix) {
+			return true
+		}
+	}
+	switch normalized {
+	case "authorization", "proxyauthorization", "cookie", "setcookie", "apikey", "xapikey", "xgoogapikey",
+		"password", "passwd", "secret", "clientsecret", "sessionsecret", "cryptosecret", "token", "accesstoken",
+		"refreshtoken", "idtoken", "privatekey", "key", "credential", "credentials", "signature", "sig":
+		return true
+	default:
+		return false
+	}
 }

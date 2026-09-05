@@ -6,7 +6,7 @@ on:
       source_sha:
         description: Full commit SHA to deploy (default is the current production release)
         type: string
-        default: 8132920459b707551224649fc1dc60780b5855a0
+        default: 8cfc1906efec25918d0a7cd575cabbc867b42512
         required: true
       scope:
         description: Deployment scope

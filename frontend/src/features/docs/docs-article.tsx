@@ -187,7 +187,7 @@ export function DocsArticle(props: DocsArticleProps) {
           <h2 className='text-2xl font-semibold'>{t('Desktop clients')}</h2>
           <p className='text-muted-foreground mt-2 leading-7'>
             {t(
-              'Download our macOS desktop clients for Claude and ChatGPT, then use the Base URL and API key above to connect.'
+              'Download a desktop client and sign in to start using it immediately. No manual configuration is required.'
             )}
           </p>
         </div>

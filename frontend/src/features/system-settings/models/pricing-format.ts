@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 const DISPLAY_DECIMALS = 12
 const SNAP_DECIMALS = 8
-const SNAP_EPSILON = 1e-12
-const SNAP_ULP_MULTIPLIER = 256
+const SNAP_RELATIVE_TOLERANCE = 1e-11
 
 function toNumberOrNull(value: unknown): number | null {
   if (
@@ -41,13 +40,10 @@ function roundToDecimals(value: number, decimals: number): number {
 }
 
 function snapFloatDrift(value: number): number {
-  // Currency conversion can amplify an already rounded stored decimal by
-  // hundreds of ULPs. Use a relative tolerance so values near 70 normalize to
-  // 70 without discarding meaningful precision from very small prices.
-  const tolerance = Math.max(
-    SNAP_EPSILON,
-    Math.abs(value) * Number.EPSILON * SNAP_ULP_MULTIPLIER
-  )
+  // Older editors rounded stored ratios to 12 decimals. Currency conversion
+  // amplifies that error beyond a few ULPs. Snap only near short decimals,
+  // relative to the price so tiny, nonzero prices are never snapped to zero.
+  const tolerance = Math.abs(value) * SNAP_RELATIVE_TOLERANCE
 
   for (let decimals = 0; decimals <= SNAP_DECIMALS; decimals += 1) {
     const rounded = roundToDecimals(value, decimals)
@@ -65,4 +61,10 @@ export function formatPricingNumber(value: unknown): string {
 
   const normalized = snapFloatDrift(num)
   return Number.parseFloat(normalized.toFixed(DISPLAY_DECIMALS)).toString()
+}
+
+// Persist the full numeric precision; display rounding must not alter ratios.
+export function serializePricingNumber(value: unknown): string {
+  const num = toNumberOrNull(value)
+  return num === null ? '' : num.toString()
 }

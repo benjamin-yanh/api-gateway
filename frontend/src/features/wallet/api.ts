@@ -76,6 +76,15 @@ export async function getRedemptionCardHistory(): Promise<RedemptionCardHistoryR
   return res.data
 }
 
+export async function withdrawCashback(quota: number): Promise<ApiResponse> {
+  const response = await api.post<ApiResponse>(
+    '/api/user/cashback/withdraw',
+    { method: 'balance', quota },
+    { skipErrorHandler: true }
+  )
+  return response.data
+}
+
 /**
  * Calculate payment amount for regular payment
  */
